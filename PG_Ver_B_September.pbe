@@ -1,2 +1,4 @@
 ERROR
-Error at Line [610]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Colon not allowed after Case! ***
+Error at Line [662]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' IIf ' not found! ***
+Error at Line [670]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_ReadEncoder ' not found! ***
+Error at Line [675]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Misplaced or Incorrect 'EndIf'. Also check its corresponding If Command! ***
