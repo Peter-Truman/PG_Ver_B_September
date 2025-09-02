@@ -1,14 +1,3 @@
-ERROR
-Error at Line [263]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' EReadB ' not found! ***
-Error at Line [301]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Command or Assignment required after Then directive! ***
-Error at Line [307]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Command or Assignment required after Then directive! ***
-Error at Line [310]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Command or Assignment required after Then directive! ***
-Error at Line [313]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Command or Assignment required after Then directive! ***
-Error at Line [316]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Command or Assignment required after Then directive! ***
-Error at Line [353]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Command or Assignment required after Then directive! ***
-Error at Line [722]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Missing opening bracket! ***
-Error at Line [725]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Assignment cannot be a Label! ***
-Error at Line [734]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Command or Assignment required after Then directive! ***
-Error at Line [751]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Missing opening bracket! ***
-Error at Line [756]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Missing opening bracket! ***
-Error at Line [767]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Misplaced or Incorrect 'EndIf'. Also check its corresponding If Command! ***
+18F2525,7510,233,32
+    Program Compiled OK. 7510 Bytes used from a possible 49152
+    233 Variables used in the 18F2525 from a possible 3967

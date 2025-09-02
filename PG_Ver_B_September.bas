@@ -207,17 +207,17 @@ GoTo Exit_P_MMSS_ToSecs
 Exit_P_MMSS_ToSecs:
 EndProc
 
-'--- Activity bump (resets idle timer)
-Proc P_MarkActive()
-    L_LastInput = L_Millis
-GoTo Exit_P_MarkActive
-Exit_P_MarkActive:
-EndProc
+''--- Activity bump (resets idle timer)
+'Proc P_MarkActive()
+'    L_LastInput = L_Millis
+'GoTo Exit_P_MarkActive
+'Exit_P_MarkActive:
+'EndProc
 
 '--- Clamp helper
 Proc P_ClampW(ByRef W_Val As Word, W_Min As Word, W_Max As Word)
-    If W_Val < W_Min Then: W_Val = W_Min : EndIf
-    If W_Val > W_Max Then: W_Val = W_Max : EndIf
+    If W_Val < W_Min Then W_Val = W_Min
+    If W_Val > W_Max Then W_Val = W_Max
 GoTo Exit_P_ClampW
 Exit_P_ClampW:
 EndProc
@@ -228,7 +228,7 @@ EndProc
 
 
 Proc EWriteB(W_Addr As Word, B_Val As Byte)
-    If ERead W_Addr <> B_Val Then: EWrite W_Addr, B_Val : EndIf
+    If ERead W_Addr <> B_Val Then EWrite W_Addr, B_Val
 GoTo Exit_EWriteB
 Exit_EWriteB:
 EndProc
@@ -238,8 +238,8 @@ Proc EWriteW(W_Addr As Word, W_Val As Word)
     Dim B_Lo As Byte, B_Hi As Byte
     B_Lo = Low W_Val
     B_Hi = High W_Val
-    If ERead W_Addr <> B_Lo Then: EWrite W_Addr, B_Lo : EndIf
-    If ERead (W_Addr + 1) <> B_Hi Then: EWrite (W_Addr + 1), B_Hi : EndIf
+    If ERead W_Addr <> B_Lo Then EWrite W_Addr, B_Lo
+    If ERead (W_Addr + 1) <> B_Hi Then EWrite (W_Addr + 1), B_Hi
 GoTo Exit_EWriteW
 Exit_EWriteW:
 EndProc
@@ -250,43 +250,47 @@ Proc EWriteL(W_Addr As Word, L_Val As Dword)
     B_B1 = (L_Val / 256) & $FF
     B_B2 = (L_Val / 65536) & $FF
     B_B3 = (L_Val / 16777216) & $FF
-    If ERead W_Addr <> B_B0 Then: EWrite W_Addr, B_B0 : EndIf
-    If ERead (W_Addr + 1) <> B_B1 Then: EWrite (W_Addr + 1), B_B1 : EndIf
-    If ERead (W_Addr + 2) <> B_B2 Then: EWrite (W_Addr + 2), B_B2 : EndIf
-    If ERead (W_Addr + 3) <> B_B3 Then: EWrite (W_Addr + 3), B_B3 : EndIf
+    If ERead W_Addr <> B_B0 Then EWrite W_Addr, B_B0
+    If ERead (W_Addr + 1) <> B_B1 Then EWrite (W_Addr + 1), B_B1
+    If ERead (W_Addr + 2) <> B_B2 Then EWrite (W_Addr + 2), B_B2
+    If ERead (W_Addr + 3) <> B_B3 Then EWrite (W_Addr + 3), B_B3
 GoTo Exit_EWriteL
 Exit_EWriteL:
 EndProc
 
 ' Load settings (only Input1 for now)
 Proc P_LoadSettings()
-    B_I1_Enabled = EReadB(EE_I1_ENABLED)
-    B_I1_SensorT = EReadB(EE_I1_SENSORT)
-    B_I1_FlowMode = EReadB(EE_I1_FLOWMODE)
-    W_I1_Scale4 = EReadW(EE_I1_SCALE4)
-    W_I1_Scale20 = EReadW(EE_I1_SCALE20)
-    W_I1_BP_High = EReadW(EE_I1_BP_HIGH)
-    W_I1_BP_PLP  = EReadW(EE_I1_BP_PLP)
-    W_I1_BP_SLP  = EReadW(EE_I1_BP_SLP)
-    B_I1_RlyHigh = EReadB(EE_I1_RLY_HIGH)
-    B_I1_RlyPLP  = EReadB(EE_I1_RLY_PLP)
-    B_I1_RlySLP  = EReadB(EE_I1_RLY_SLP)
-    B_I1_Display = EReadB(EE_I1_DISPLAY)
+    B_I1_Enabled  = ERead EE_I1_ENABLED
+    B_I1_SensorT  = ERead EE_I1_SENSORT
+    B_I1_FlowMode = ERead EE_I1_FLOWMODE
+
+    W_I1_Scale4   = ERead EE_I1_SCALE4
+    W_I1_Scale20  = ERead EE_I1_SCALE20
+
+    W_I1_BP_High  = ERead EE_I1_BP_HIGH
+    W_I1_BP_PLP   = ERead EE_I1_BP_PLP
+    W_I1_BP_SLP   = ERead EE_I1_BP_SLP
+
+    B_I1_RlyHigh  = ERead EE_I1_RLY_HIGH
+    B_I1_RlyPLP   = ERead EE_I1_RLY_PLP
+    B_I1_RlySLP   = ERead EE_I1_RLY_SLP
+    B_I1_Display  = ERead EE_I1_DISPLAY
 EndProc
 
+
 Proc P_SaveSettings()
-    EWriteB EE_I1_ENABLED, B_I1_Enabled
-    EWriteB EE_I1_SENSORT, B_I1_SensorT
-    EWriteB EE_I1_FLOWMODE, B_I1_FlowMode
-    EWriteW EE_I1_SCALE4, W_I1_Scale4
-    EWriteW EE_I1_SCALE20, W_I1_Scale20
-    EWriteW EE_I1_BP_HIGH, W_I1_BP_High
-    EWriteW EE_I1_BP_PLP,  W_I1_BP_PLP
-    EWriteW EE_I1_BP_SLP,  W_I1_BP_SLP
-    EWriteB EE_I1_RLY_HIGH, B_I1_RlyHigh
-    EWriteB EE_I1_RLY_PLP,  B_I1_RlyPLP
-    EWriteB EE_I1_RLY_SLP,  B_I1_RlySLP
-    EWriteB EE_I1_DISPLAY,  B_I1_Display
+    EWrite EE_I1_ENABLED, [B_I1_Enabled]
+    EWrite EE_I1_SENSORT, [B_I1_SensorT]
+    EWrite EE_I1_FLOWMODE, [B_I1_FlowMode]
+    EWrite EE_I1_SCALE4, [W_I1_Scale4]
+    EWrite EE_I1_SCALE20, [W_I1_Scale20]
+    EWrite EE_I1_BP_HIGH, [W_I1_BP_High]
+    EWrite EE_I1_BP_PLP,  [W_I1_BP_PLP]
+    EWrite EE_I1_BP_SLP,  [W_I1_BP_SLP]
+    EWrite EE_I1_RLY_HIGH, [B_I1_RlyHigh]
+    EWrite EE_I1_RLY_PLP,  [B_I1_RlyPLP]
+    EWrite EE_I1_RLY_SLP,  [B_I1_RlySLP]
+    EWrite EE_I1_DISPLAY,  [B_I1_Display]
 EndProc
 
 '=====================================================================
@@ -298,26 +302,51 @@ Proc P_ReadEncoder()
     Dim B_A As Byte, B_B As Byte, B_State As Byte
     B_A = ENC_A
     B_B = ENC_B
-    If B_A = 0 Then: B_A = 0 Else: B_A = 1 : EndIf
-    If B_B = 0 Then: B_B = 0 Else: B_B = 1 : EndIf
+    If B_A = 0 Then
+        B_A = 0
+    Else
+        B_A = 1
+    EndIf
+    If B_B = 0 Then
+        B_B = 0
+    Else
+        B_B = 1
+    EndIf
     B_State = (B_A << 1) | B_B
-    B_EncDelta = 0
-    Select B_EncPrev
-        Case 0
-            If B_State = 1 Then: B_EncDelta = +1 : EndIf
-            If B_State = 2 Then: B_EncDelta = -1 : EndIf
-        Case 1
-            If B_State = 3 Then: B_EncDelta = +1 : EndIf
-            If B_State = 0 Then: B_EncDelta = -1 : EndIf
-        Case 3
-            If B_State = 2 Then: B_EncDelta = +1 : EndIf
-            If B_State = 1 Then: B_EncDelta = -1 : EndIf
-        Case 2
-            If B_State = 0 Then: B_EncDelta = +1 : EndIf
-            If B_State = 3 Then: B_EncDelta = -1 : EndIf
-    EndSelect
+B_EncDelta = 0
+Select B_EncPrev
+    Case 0
+        If B_State = 1 Then
+            B_EncDelta = 1
+        EndIf
+        If B_State = 2 Then
+            B_EncDelta = -1
+        EndIf
+    Case 1
+        If B_State = 3 Then
+            B_EncDelta = 1
+        EndIf
+        If B_State = 0 Then
+            B_EncDelta = -1
+        EndIf
+    Case 3
+        If B_State = 2 Then
+            B_EncDelta = 1
+        EndIf
+        If B_State = 1 Then
+            B_EncDelta = -1
+        EndIf
+    Case 2
+        If B_State = 0 Then
+            B_EncDelta = 1
+        EndIf
+        If B_State = 3 Then
+            B_EncDelta = -1
+        EndIf
+EndSelect
+
     B_EncPrev = B_State
-    If B_EncDelta <> 0 Then: P_MarkActive : EndIf
+    If B_EncDelta <> 0 Then L_LastInput = L_Millis
 GoTo Exit_P_ReadEncoder
 Exit_P_ReadEncoder:
 EndProc
@@ -350,7 +379,7 @@ Proc P_ReadButton()
             Else
                 B_KeyEvent = 0
             EndIf
-            If B_KeyEvent <> 0 Then: P_MarkActive : EndIf
+            If B_KeyEvent <> 0 Then L_LastInput = L_Millis
         EndIf
     b_BtnLast = 0
 EndIf
@@ -370,8 +399,16 @@ EndProc
 Proc P_UserAborted(), Byte
     Dim B_Ev As Byte
     B_Ev = P_GetKeyEvent()
-    If B_Ev = 2 Then: b_Escape = 1 : Result = 1 : GoTo Exit_P_UserAborted : EndIf ' long
-    If B_Ev = 3 Then: b_Escape = 1 : Result = 1 : GoTo Exit_P_UserAborted : EndIf ' very long
+    If B_Ev = 2 Then
+        b_Escape = 1
+        Result = 1
+        GoTo Exit_P_UserAborted
+    EndIf ' long
+    If B_Ev = 3 Then
+        b_Escape = 1
+        Result = 1
+        GoTo Exit_P_UserAborted
+    EndIf ' very long
     If (L_Millis - L_LastInput) >= UI_TIMEOUT_MS Then
         b_Escape = 1
         Result = 1
@@ -394,21 +431,24 @@ Proc P_EditYN(ByRef B_Val As Byte), Byte
     While 1=1
         If b_ScrDirty = 1 Then
             P_DrawTitle("EDIT: YES/NO")
-            P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
-            Locate 3, 1
+            P_ClearLine(2): P_ClearLine(3): P_ClearLine(4)
             If B_Cur = YES Then
-                Print "[Yes]  No           "
+                Print At 3,1,"[Yes]  No           "
             Else
-                Print " Yes  [No]          "
+                Print At 3,1," Yes  [No]          "
             EndIf
             b_ScrDirty = 0
         EndIf
-        P_ReadEncoder
+        P_ReadEncoder()
         If B_EncDelta <> 0 Then
-            If B_Cur = YES Then: B_Cur = NO Else: B_Cur = YES : EndIf
+            If B_Cur = YES Then
+                B_Cur = NO
+            Else
+                B_Cur = YES
+            EndIf
             Set b_ScrDirty
         EndIf
-        P_ReadButton
+        P_ReadButton()
         Select P_GetKeyEvent()
             Case 1
                 B_Val = B_Cur
@@ -421,7 +461,10 @@ Proc P_EditYN(ByRef B_Val As Byte), Byte
                 Result = 0
                 GoTo Exit_P_EditYN
         EndSelect
-        If P_UserAborted() <> 0 Then: Result = 0 : GoTo Exit_P_EditYN : EndIf
+        If P_UserAborted() <> 0 Then
+            Result = 0
+            GoTo Exit_P_EditYN
+        EndIf
     Wend
 GoTo Exit_P_EditYN
 Exit_P_EditYN:
@@ -435,27 +478,26 @@ Proc P_EditEnum3(ByRef B_Val As Byte), Byte
     While 1=1
         If b_ScrDirty = 1 Then
             P_DrawTitle("EDIT: OUTPUT MODE")
-            P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
-            Locate 3, 1
+            P_ClearLine(2): P_ClearLine(3): P_ClearLine(4)
             Select B_Cur
                 Case MODE_NO
-                    Print "[No]  Pulse  Latch    "
+                    Print At 3,1, "[No]  Pulse  Latch    "
                 Case MODE_PULSE
-                    Print " No  [Pulse] Latch    "
+                    Print At 3,1, " No  [Pulse] Latch    "
                 Case MODE_LATCH
-                    Print " No   Pulse [Latch]  "
+                    Print At 3,1, " No   Pulse [Latch]  "
             EndSelect
             b_ScrDirty = 0
         EndIf
-        P_ReadEncoder
-        If B_EncDelta = +1 Then
-            If B_Cur < MODE_LATCH Then: B_Cur = B_Cur + 1 : EndIf
+        P_ReadEncoder()
+        If B_EncDelta = 1 Then
+            If B_Cur < MODE_LATCH Then B_Cur = B_Cur + 1
             Set b_ScrDirty
         ElseIf B_EncDelta = -1 Then
-            If B_Cur > MODE_NO Then: B_Cur = B_Cur - 1 : EndIf
+            If B_Cur > MODE_NO Then B_Cur = B_Cur - 1
             Set b_ScrDirty
         EndIf
-        P_ReadButton
+        P_ReadButton()
         Select P_GetKeyEvent()
             Case 1
                 B_Val = B_Cur
@@ -468,7 +510,10 @@ Proc P_EditEnum3(ByRef B_Val As Byte), Byte
                 Result = 0
                 GoTo Exit_P_EditEnum3
         EndSelect
-        If P_UserAborted() <> 0 Then: Result = 0 : GoTo Exit_P_EditEnum3 : EndIf
+        If P_UserAborted() <> 0 Then
+            Result = 0
+            GoTo Exit_P_EditEnum3
+        EndIf
     Wend
 GoTo Exit_P_EditEnum3
 Exit_P_EditEnum3:
@@ -482,20 +527,24 @@ Proc P_EditWordVal(ByRef W_Val As Word, W_Min As Word, W_Max As Word, W_Step As 
     While 1=1
         If b_ScrDirty = 1 Then
             P_DrawTitle("EDIT: WORD VALUE")
-            P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
-            Locate 3, 1
-            Print " Value: [";Dec W_Cur;"]         "
+            P_ClearLine(2): P_ClearLine(3): P_ClearLine(4)
+            'Locate 3, 1
+            Print At 3,1, " Value: [",Dec5 W_Cur,"]         "
             b_ScrDirty = 0
         EndIf
-        P_ReadEncoder
-        If B_EncDelta = +1 Then
-            If W_Cur + W_Step <= W_Max Then: W_Cur = W_Cur + W_Step : EndIf
+        P_ReadEncoder()
+        If B_EncDelta = 1 Then
+            If W_Cur + W_Step <= W_Max Then W_Cur = W_Cur + W_Step
             Set b_ScrDirty
         ElseIf B_EncDelta = -1 Then
-            If W_Cur >= (W_Min + W_Step) Then: W_Cur = W_Cur - W_Step Else: W_Cur = W_Min : EndIf
+            If W_Cur >= (W_Min + W_Step) Then
+                W_Cur = W_Cur - W_Step
+            Else
+                W_Cur = W_Min
+            EndIf
             Set b_ScrDirty
         EndIf
-        P_ReadButton
+        P_ReadButton()
         Select P_GetKeyEvent()
             Case 1
                 W_Val = W_Cur
@@ -508,7 +557,10 @@ Proc P_EditWordVal(ByRef W_Val As Word, W_Min As Word, W_Max As Word, W_Step As 
                 Result = 0
                 GoTo Exit_P_EditWordVal
         EndSelect
-        If P_UserAborted() <> 0 Then: Result = 0 : GoTo Exit_P_EditWordVal : EndIf
+        If P_UserAborted() <> 0 Then
+            Result = 0
+            GoTo Exit_P_EditWordVal
+        EndIf
     Wend
 GoTo Exit_P_EditWordVal
 Exit_P_EditWordVal:
@@ -517,43 +569,36 @@ EndProc
 '--- mm:ss editor (0..99:59). Short=toggle field/save, Long=cancel
 Proc P_EditMMSS(ByRef W_Val As Word), Byte
     Dim B_Min As Byte, B_Sec As Byte, B_Field As Byte
-    B_Min = W_Val / 60
-    B_Sec = W_Val % 60
+    B_Min = W_Val / 60     ' minutes
+    B_Sec = W_Val // 60    ' remainder seconds (mod 60)
+
     B_Field = 0                                   ' 0=mm,1=ss
     Set b_ScrDirty
     While 1=1
         If b_ScrDirty = 1 Then
             P_DrawTitle("EDIT: DURATION")
-            P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
-            Locate 3, 1
-            If B_Field = 0 Then
-                Print " [";If B_Min<10 Then: Print "0" : EndIf;Dec B_Min;
-                Print "] : ";If B_Sec<10 Then: Print "0" : EndIf;Dec B_Sec
-            Else
-                Print "  ";If B_Min<10 Then: Print "0" : EndIf;Dec B_Min;" : [";
-                If B_Sec<10 Then: Print "0" : EndIf;Dec B_Sec;
-                Print "]"
-            EndIf
-            Print Space$(20 - 13)                 ' pad to 20 cols
+            P_ClearLine(2): P_ClearLine(3): P_ClearLine(4)
+            'Locate 3, 1
+            If B_Field = 0 Then Print At 3,1, " [",Dec 2,B_Min,"]"
             b_ScrDirty = 0
         EndIf
-        P_ReadEncoder
-        If B_EncDelta = +1 Then
+        P_ReadEncoder()
+        If B_EncDelta = 1 Then
             If B_Field = 0 Then
-                If B_Min < 99 Then: Inc B_Min : EndIf
+                If B_Min < 99 Then Inc B_Min
             Else
-                If B_Sec < 59 Then: Inc B_Sec : EndIf
+                If B_Sec < 59 Then Inc B_Sec
             EndIf
             Set b_ScrDirty
         ElseIf B_EncDelta = -1 Then
             If B_Field = 0 Then
-                If B_Min > 0 Then: Dec B_Min : EndIf
+                If B_Min > 0 Then Dec B_Min
             Else
-                If B_Sec > 0 Then: Dec B_Sec : EndIf
+                If B_Sec > 0 Then Dec B_Sec
             EndIf
             Set b_ScrDirty
         EndIf
-        P_ReadButton
+        P_ReadButton()
         Select P_GetKeyEvent()
             Case 1
                 If B_Field = 0 Then
@@ -571,7 +616,10 @@ Proc P_EditMMSS(ByRef W_Val As Word), Byte
                 Result = 0
                 GoTo Exit_P_EditMMSS
         EndSelect
-        If P_UserAborted() <> 0 Then: Result = 0 : GoTo Exit_P_EditMMSS : EndIf
+        If P_UserAborted() <> 0 Then
+            Result = 0
+            GoTo Exit_P_EditMMSS
+        EndIf
     Wend
 GoTo Exit_P_EditMMSS
 Exit_P_EditMMSS:
@@ -719,10 +767,10 @@ EndProc
 Proc V_UtilityStub()
     b_ReInitLCD = 0
     P_DrawTitle("UTILITY (STUB)      ")
-    P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
-    Locate 3,1: Print "Coming soon...      "
+    P_ClearLine(2): P_ClearLine(3): P_ClearLine(4)
+    'Locate 3,1: Print "Coming soon...      "
     While 1=1
-        P_ReadButton
+        P_ReadButton()
         Select P_GetKeyEvent()
             Case 1
                 GoTo Exit_V_UtilityStub
@@ -731,7 +779,7 @@ Proc V_UtilityStub()
             Case 3
                 GoTo Exit_V_UtilityStub
         EndSelect
-        If P_UserAborted() <> 0 Then: GoTo Exit_V_UtilityStub : EndIf
+        If P_UserAborted() <> 0 Then GoTo Exit_V_UtilityStub
     Wend
 GoTo Exit_V_UtilityStub
 Exit_V_UtilityStub:
@@ -748,24 +796,44 @@ Proc V_SetupMenu(), Byte
     While 1=1
         If b_ScrDirty = 1 Then
             P_DrawTitle("SETUP               ")
-            P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
-            If B_Sel < B_Top Then: B_Top = B_Sel : EndIf
-            If B_Sel > (B_Top + 2) Then: B_Top = B_Sel - 2 : EndIf
+            P_ClearLine(2): P_ClearLine(3): P_ClearLine(4)
+            If B_Sel < B_Top Then B_Top = B_Sel
+            If B_Sel > (B_Top + 2) Then B_Top = B_Sel - 2
             Select B_Top
                 Case 0
-                    P_PrintRow 2, "Input 1", IIf(B_Sel=0,1,0)
-                    P_PrintRow 3, "Input 2", IIf(B_Sel=1,1,0)
-                    P_PrintRow 4, "Input 3", IIf(B_Sel=2,1,0)
+                    If B_Sel = 0 Then
+                        P_PrintRow(2, "Input 1", 1)
+                    Else
+                        P_PrintRow(2, "Input 1", 0)
+                    EndIf
+            
+                    If B_Sel = 1 Then
+                        P_PrintRow(3, "Input 2", 1)
+                    Else
+                        P_PrintRow(3, "Input 2", 0)
+                    EndIf
+            
+                    If B_Sel = 2 Then
+                        P_PrintRow(4, "Input 3", 1)
+                    Else
+                        P_PrintRow(4, "Input 3", 0)
+                    EndIf
             EndSelect
             b_ScrDirty = 0
         EndIf
-        P_ReadEncoder
-        If B_EncDelta = +1 Then
-            If B_Sel < (B_Cnt-1) Then: Inc B_Sel : Set b_ScrDirty : EndIf
+        P_ReadEncoder()
+        If B_EncDelta = 1 Then
+            If B_Sel < (B_Cnt-1) Then
+                Inc B_Sel
+                Set b_ScrDirty
+            EndIf
         ElseIf B_EncDelta = -1 Then
-            If B_Sel > 0 Then: Dec B_Sel : Set b_ScrDirty : EndIf
+            If B_Sel > 0 Then
+                Dec B_Sel
+                Set b_ScrDirty
+            EndIf
         EndIf
-        P_ReadButton
+        P_ReadButton()
         Select P_GetKeyEvent()
             Case 1
                 Select B_Sel
@@ -787,7 +855,10 @@ Proc V_SetupMenu(), Byte
                 Result = 0
                 GoTo Exit_V_SetupMenu
         EndSelect
-        If P_UserAborted() <> 0 Then: Result = 0 : GoTo Exit_V_SetupMenu : EndIf
+        If P_UserAborted() <> 0 Then
+            Result = 0
+            GoTo Exit_V_SetupMenu
+        EndIf
     Wend
 GoTo Exit_V_SetupMenu
 Exit_V_SetupMenu:
@@ -796,10 +867,10 @@ EndProc
 Proc V_NotImpl(S_Name As String)
     b_ReInitLCD = 0
     P_DrawTitle(S_Name + " (STUB)      ")
-    P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
-    Locate 3,1: Print "Not implemented     "
+    P_ClearLine(2): P_ClearLine(3): P_ClearLine(4)
+    'Locate 3,1: Print "Not implemented     "
     While 1=1
-        P_ReadButton
+        P_ReadButton()
         Select P_GetKeyEvent()
             Case 1
                 GoTo Exit_V_NotImpl
@@ -808,7 +879,7 @@ Proc V_NotImpl(S_Name As String)
             Case 3
                 GoTo Exit_V_NotImpl
         EndSelect
-        If P_UserAborted() <> 0 Then: GoTo Exit_V_NotImpl : EndIf
+        If P_UserAborted() <> 0 Then GoTo Exit_V_NotImpl
     Wend
 GoTo Exit_V_NotImpl
 Exit_V_NotImpl:
@@ -821,26 +892,51 @@ Proc V_Input1Menu(), Byte
     b_ReInitLCD = 0
     Set b_ScrDirty
     While 1=1
-        If b_ScrDirty = 1 Then
-            P_DrawTitle("INPUT 1             ")
-            P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
-            P_PrintRow 2, "Enable", IIf(B_Sel=0,1,0)
-            P_PrintRow 3, "Sensor Type", IIf(B_Sel=1,1,0)
-            P_PrintRow 4, "Edit Params", IIf(B_Sel=2,1,0)
-            b_ScrDirty = 0
-        EndIf
-        P_ReadEncoder
-        If B_EncDelta = +1 Then
-            If B_Sel < 2 Then: Inc B_Sel : Set b_ScrDirty : EndIf
+If b_ScrDirty = 1 Then
+    P_DrawTitle("INPUT 1             ")
+    P_ClearLine(2)
+    P_ClearLine(3)
+    P_ClearLine(4)
+
+    If B_Sel = 0 Then
+        P_PrintRow(2, "Enable", 1)
+    Else
+        P_PrintRow(2, "Enable", 0)
+    EndIf
+
+    If B_Sel = 1 Then
+        P_PrintRow(3, "Sensor Type", 1)
+    Else
+        P_PrintRow(3, "Sensor Type", 0)
+    EndIf
+
+    If B_Sel = 2 Then
+        P_PrintRow(4, "Edit Params", 1)
+    Else
+        P_PrintRow(4, "Edit Params", 0)
+    EndIf
+
+    b_ScrDirty = 0
+EndIf
+
+        P_ReadEncoder()
+        If B_EncDelta = 1 Then
+            If B_Sel < 2 Then
+                Inc B_Sel
+                Set b_ScrDirty
+            EndIf
         ElseIf B_EncDelta = -1 Then
-            If B_Sel > 0 Then: Dec B_Sel : Set b_ScrDirty : EndIf
+            If B_Sel > 0 Then
+                Dec B_Sel
+                Set b_ScrDirty
+            EndIf
         EndIf
-        P_ReadButton
+        P_ReadButton()
         Select P_GetKeyEvent()
             Case 1
                 Select B_Sel
                     Case 0
-                        If P_EditYN(B_I1_Enabled) = 1 Then: P_SaveSettings : EndIf
+                        If P_EditYN(B_I1_Enabled) = 1 Then P_SaveSettings
                     Case 1
                         If V_Input1Sensor() = 0 Then
                             Result = 0
@@ -871,7 +967,10 @@ Proc V_Input1Menu(), Byte
                 Result = 0
                 GoTo Exit_V_Input1Menu
         EndSelect
-        If P_UserAborted() <> 0 Then: Result = 0 : GoTo Exit_V_Input1Menu : EndIf
+        If P_UserAborted() <> 0 Then
+            Result = 0
+            GoTo Exit_V_Input1Menu
+        EndIf
     Wend
 GoTo Exit_V_Input1Menu
 Exit_V_Input1Menu:
@@ -886,36 +985,63 @@ Proc V_Input1Sensor(), Byte
     While 1=1
         If b_ScrDirty = 1 Then
             P_DrawTitle("SENSOR TYPE         ")
-            P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
-            P_PrintRow 2, "Flow", IIf(B_Sel=0,1,0)
-            P_PrintRow 3, "Pressure", IIf(B_Sel=1,1,0)
-            P_PrintRow 4, "Temperature", IIf(B_Sel=2,1,0)
+            P_ClearLine(2)
+            P_ClearLine(3)
+            P_ClearLine(4)
+
+            If B_Sel = 0 Then
+                P_PrintRow(2, "Flow", 1)
+            Else
+                P_PrintRow(2, "Flow", 0)
+            EndIf
+
+            If B_Sel = 1 Then
+                P_PrintRow(3, "Pressure", 1)
+            Else
+                P_PrintRow(3, "Pressure", 0)
+            EndIf
+
+            If B_Sel = 2 Then
+                P_PrintRow(4, "Temperature", 1)
+            Else
+                P_PrintRow(4, "Temperature", 0)
+            EndIf
+
             b_ScrDirty = 0
         EndIf
-        P_ReadEncoder
-        If B_EncDelta = +1 Then
-            If B_Sel < 2 Then: Inc B_Sel : Set b_ScrDirty : EndIf
+
+        P_ReadEncoder()
+        If B_EncDelta = 1 Then
+            If B_Sel < 2 Then
+                Inc B_Sel
+                Set b_ScrDirty
+            EndIf
         ElseIf B_EncDelta = -1 Then
-            If B_Sel > 0 Then: Dec B_Sel : Set b_ScrDirty : EndIf
+            If B_Sel > 0 Then
+            Dec B_Sel
+            Set b_ScrDirty
         EndIf
-        P_ReadButton
+        EndIf
+        P_ReadButton()
         Select P_GetKeyEvent()
             Case 1
                 B_I1_SensorT = B_Sel
-                P_SaveSettings
+                P_SaveSettings()
                 Result = 1
-                GoTo Exit_V_Input1Sensor
+                GoTo Exit_V_In1Sens
             Case 2
                 Result = 0
-                GoTo Exit_V_Input1Sensor
+                GoTo Exit_V_In1Sens
             Case 3
                 Result = 0
-                GoTo Exit_V_Input1Sensor
+                GoTo Exit_V_In1Sens
         EndSelect
-        If P_UserAborted() <> 0 Then: Result = 0 : GoTo Exit_V_Input1Sensor : EndIf
+        If P_UserAborted() <> 0 Then
+            Result = 0
+            GoTo Exit_V_In1Sens
+        EndIf
     Wend
-GoTo Exit_V_Input1Sensor
-Exit_V_Input1Sensor:
+Exit_V_In1Sens:
 EndProc
 
 '--- Input1 Pressure editor list (subset implemented)
@@ -928,81 +1054,233 @@ Proc V_I1_Pressure(), Byte
     While 1=1
         If b_ScrDirty = 1 Then
             P_DrawTitle("I1 PRESSURE         ")
-            P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
+            P_ClearLine(2): P_ClearLine(3): P_ClearLine(4)
             ' Render 3-row list window based on B_Sel
             Dim B_Top As Byte
-            If B_Sel <= 1 Then: B_Top = 0 ElseIf B_Sel = 2 Then: B_Top = 1 ElseIf B_Sel = 3 Then: B_Top = 2 ElseIf B_Sel = 4 Then: B_Top = 3 ElseIf B_Sel = 5 Then: B_Top = 4 ElseIf B_Sel = 6 Then: B_Top = 5 Else: B_Top = B_Sel-2 : EndIf
+            If B_Sel <= 1 Then
+                B_Top = 0
+            ElseIf B_Sel = 2 Then
+                B_Top = 1
+            ElseIf B_Sel = 3 Then
+                B_Top = 2
+            ElseIf B_Sel = 4 Then
+                B_Top = 3
+            ElseIf B_Sel = 5 Then
+                B_Top = 4
+            ElseIf B_Sel = 6 Then
+                B_Top = 5
+            Else
+                B_Top = B_Sel-2
+            EndIf
             ' Lines text (fixed labels, values drawn inline where useful)
             Select B_Top
                 Case 0
-                    P_PrintRow 2, "Scale 4ma   [" + Str$(W_I1_Scale4) + "]", IIf(B_Sel=0,1,0)
-                    P_PrintRow 3, "Scale 20ma  [" + Str$(W_I1_Scale20) + "]", IIf(B_Sel=1,1,0)
-                    P_PrintRow 4, "High BP     [mm:ss]", IIf(B_Sel=2,1,0)
+                    ' Row 2: Scale 4mA
+                    If B_Sel = 0 Then
+                        Print At 2,1,"[Scale 4ma   [", Dec W_I1_Scale4, "]"
+                    Else
+                        Print At 2,2,"Scale 4ma   [", Dec W_I1_Scale4, "]"
+                    EndIf
+            
+                    ' Row 3: Scale 20mA
+                    If B_Sel = 1 Then
+                        Print At 3,1,"[Scale 20ma  [", Dec W_I1_Scale20, "]"
+                    Else
+                        Print At 3,2,"Scale 20ma  [", Dec W_I1_Scale20, "]"
+                    EndIf
+            
+                    ' Row 4: High BP (static text)
+                    If B_Sel = 2 Then
+                        P_PrintRow(4, "High BP     [mm:ss]", 1)
+                    Else
+                        P_PrintRow(4, "High BP     [mm:ss]", 0)
+                    EndIf
+            
                 Case 1
-                    P_PrintRow 2, "Scale 20ma  [" + Str$(W_I1_Scale20) + "]", IIf(B_Sel=1,1,0)
-                    P_PrintRow 3, "High BP     [mm:ss]", IIf(B_Sel=2,1,0)
-                    P_PrintRow 4, "PLPBP       [mm:ss]", IIf(B_Sel=3,1,0)
+                    ' Row 2: Scale 20mA
+                    If B_Sel = 1 Then
+                        Print At 2,1,"[Scale 20ma  [", Dec W_I1_Scale20, "]"
+                    Else
+                        Print At 2,2,"Scale 20ma  [", Dec W_I1_Scale20, "]"
+                    EndIf
+            
+                    ' Row 3/4: static text
+                    If B_Sel = 2 Then
+                        P_PrintRow(3, "High BP     [mm:ss]", 1)
+                    Else
+                        P_PrintRow(3, "High BP     [mm:ss]", 0)
+                    EndIf
+            
+                    If B_Sel = 3 Then
+                        P_PrintRow(4, "PLPBP       [mm:ss]", 1)
+                    Else
+                        P_PrintRow(4, "PLPBP       [mm:ss]", 0)
+                    EndIf
+            
                 Case 2
-                    P_PrintRow 2, "High BP     [mm:ss]", IIf(B_Sel=2,1,0)
-                    P_PrintRow 3, "PLPBP       [mm:ss]", IIf(B_Sel=3,1,0)
-                    P_PrintRow 4, "SLPBP       [mm:ss]", IIf(B_Sel=4,1,0)
+                    If B_Sel = 2 Then
+                        P_PrintRow(2, "High BP     [mm:ss]", 1)
+                    Else
+                        P_PrintRow(2, "High BP     [mm:ss]", 0)
+                    EndIf
+            
+                    If B_Sel = 3 Then
+                        P_PrintRow(3, "PLPBP       [mm:ss]", 1)
+                    Else
+                        P_PrintRow(3, "PLPBP       [mm:ss]", 0)
+                    EndIf
+            
+                    If B_Sel = 4 Then
+                        P_PrintRow(4, "SLPBP       [mm:ss]", 1)
+                    Else
+                        P_PrintRow(4, "SLPBP       [mm:ss]", 0)
+                    EndIf
+            
                 Case 3
-                    P_PrintRow 2, "PLPBP       [mm:ss]", IIf(B_Sel=3,1,0)
-                    P_PrintRow 3, "SLPBP       [mm:ss]", IIf(B_Sel=4,1,0)
-                    P_PrintRow 4, "Rly High    [L/P/No]", IIf(B_Sel=5,1,0)
+                    If B_Sel = 3 Then
+                        P_PrintRow(2, "PLPBP       [mm:ss]", 1)
+                    Else
+                        P_PrintRow(2, "PLPBP       [mm:ss]", 0)
+                    EndIf
+                    If B_Sel = 4 Then
+                        P_PrintRow(3, "SLPBP       [mm:ss]", 1)
+                    Else
+                        P_PrintRow(3, "SLPBP       [mm:ss]", 0)
+                    EndIf
+                    If B_Sel = 5 Then
+                        P_PrintRow(4, "Rly High    [L/P/No]", 1)
+                    Else
+                        P_PrintRow(4, "Rly High    [L/P/No]", 0)
+                    EndIf
+            
                 Case 4
-                    P_PrintRow 2, "SLPBP       [mm:ss]", IIf(B_Sel=4,1,0)
-                    P_PrintRow 3, "Rly High    [L/P/No]", IIf(B_Sel=5,1,0)
-                    P_PrintRow 4, "Rly PLB     [L/P/No]", IIf(B_Sel=6,1,0)
+                    If B_Sel = 4 Then
+                        P_PrintRow(2, "SLPBP       [mm:ss]", 1)
+                    Else
+                        P_PrintRow(2, "SLPBP       [mm:ss]", 0)
+                    EndIf
+                    If B_Sel = 5 Then
+                        P_PrintRow(3, "Rly High    [L/P/No]", 1)
+                    Else
+                        P_PrintRow(3, "Rly High    [L/P/No]", 0)
+                    EndIf
+                    If B_Sel = 6 Then
+                        P_PrintRow(4, "Rly PLB     [L/P/No]", 1)
+                    Else
+                        P_PrintRow(4, "Rly PLB     [L/P/No]", 0)
+                    EndIf
+            
                 Case 5
-                    P_PrintRow 2, "Rly High    [L/P/No]", IIf(B_Sel=5,1,0)
-                    P_PrintRow 3, "Rly PLB     [L/P/No]", IIf(B_Sel=6,1,0)
-                    P_PrintRow 4, "Rly SLP     [L/P/No]", IIf(B_Sel=7,1,0)
+                    If B_Sel = 5 Then
+                        P_PrintRow(2, "Rly High    [L/P/No]", 1)
+                    Else
+                        P_PrintRow(2, "Rly High    [L/P/No]", 0)
+                    EndIf
+                    If B_Sel = 6 Then
+                        P_PrintRow(3, "Rly PLB     [L/P/No]", 1)
+                    Else
+                        P_PrintRow(3, "Rly PLB     [L/P/No]", 0)
+                    EndIf
+                    If B_Sel = 7 Then
+                        P_PrintRow(4, "Rly SLP     [L/P/No]", 1)
+                    Else
+                        P_PrintRow(4, "Rly SLP     [L/P/No]", 0)
+                    EndIf
+            
                 Case Else
-                    P_PrintRow 2, "Rly PLB     [L/P/No]", IIf(B_Sel=6,1,0)
-                    P_PrintRow 3, "Rly SLP     [L/P/No]", IIf(B_Sel=7,1,0)
-                    P_PrintRow 4, "Display     [Yes/No]", IIf(B_Sel=8,1,0)
+                    If B_Sel = 6 Then
+                        P_PrintRow(2, "Rly PLB     [L/P/No]", 1)
+                    Else
+                        P_PrintRow(2, "Rly PLB     [L/P/No]", 0)
+                    EndIf
+                    If B_Sel = 7 Then
+                        P_PrintRow(3, "Rly SLP     [L/P/No]", 1)
+                    Else
+                        P_PrintRow(3, "Rly SLP     [L/P/No]", 0)
+                    EndIf
+                    If B_Sel = 8 Then
+                        P_PrintRow(4, "Display     [Yes/No]", 1)
+                    Else
+                        P_PrintRow(4, "Display     [Yes/No]", 0)
+                    EndIf
             EndSelect
+
             b_ScrDirty = 0
         EndIf
-        P_ReadEncoder
-        If B_EncDelta = +1 Then
-            If B_Sel < (B_Cnt-1) Then: Inc B_Sel : Set b_ScrDirty : EndIf
-        ElseIf B_EncDelta = -1 Then
-            If B_Sel > 0 Then: Dec B_Sel : Set b_ScrDirty : EndIf
-        EndIf
-        P_ReadButton
-        Select P_GetKeyEvent()
-            Case 1
-                Select B_Sel
-                    Case 0
-                        If P_EditWordVal(W_I1_Scale4, 0, 65535, 1) = 1 Then: P_Scale : P_SaveSettings : EndIf
-                    Case 1
-                        If P_EditWordVal(W_I1_Scale20, 0, 65535, 1) = 1 Then: P_Scale : P_SaveSettings : EndIf
-                    Case 2
-                        If P_EditMMSS(W_I1_BP_High) = 1 Then: P_Output : P_SaveSettings : EndIf
-                    Case 3
-                        If P_EditMMSS(W_I1_BP_PLP)  = 1 Then: P_Output : P_SaveSettings : EndIf
-                    Case 4
-                        If P_EditMMSS(W_I1_BP_SLP)  = 1 Then: P_Output : P_SaveSettings : EndIf
-                    Case 5
-                        If P_EditEnum3(B_I1_RlyHigh) = 1 Then: P_Output : P_SaveSettings : EndIf
-                    Case 6
-                        If P_EditEnum3(B_I1_RlyPLP)  = 1 Then: P_Output : P_SaveSettings : EndIf
-                    Case 7
-                        If P_EditEnum3(B_I1_RlySLP)  = 1 Then: P_Output : P_SaveSettings : EndIf
-                    Case 8
-                        If P_EditYN(B_I1_Display)     = 1 Then: P_SaveSettings : EndIf
-                EndSelect
+        P_ReadEncoder()
+        If B_EncDelta = 1 Then
+            If B_Sel < (B_Cnt-1) Then
+                Inc B_Sel
                 Set b_ScrDirty
+            EndIf
+        ElseIf B_EncDelta = -1 Then
+            If B_Sel > 0 Then
+                Dec B_Sel
+                Set b_ScrDirty
+            EndIf
+        EndIf
+        P_ReadButton()
+Select P_GetKeyEvent()
+    Case 1
+        Select B_Sel
+            Case 0
+                If P_EditWordVal(W_I1_Scale4, 0, 65535, 1) = 1 Then
+                    P_Scale()
+                    P_SaveSettings()
+                EndIf
+            Case 1
+                If P_EditWordVal(W_I1_Scale20, 0, 65535, 1) = 1 Then
+                    P_Scale()
+                    P_SaveSettings()
+                EndIf
             Case 2
-                Result = 0
-                GoTo Exit_V_I1_Pressure
+                If P_EditMMSS(W_I1_BP_High) = 1 Then
+                    P_Output()
+                    P_SaveSettings()
+                EndIf
             Case 3
-                Result = 0
-                GoTo Exit_V_I1_Pressure
+                If P_EditMMSS(W_I1_BP_PLP) = 1 Then
+                    P_Output()
+                    P_SaveSettings()
+                EndIf
+            Case 4
+                If P_EditMMSS(W_I1_BP_SLP) = 1 Then
+                    P_Output()
+                    P_SaveSettings()
+                EndIf
+            Case 5
+                If P_EditEnum3(B_I1_RlyHigh) = 1 Then
+                    P_Output()
+                    P_SaveSettings()
+                EndIf
+            Case 6
+                If P_EditEnum3(B_I1_RlyPLP) = 1 Then
+                    P_Output()
+                    P_SaveSettings()
+                EndIf
+            Case 7
+                If P_EditEnum3(B_I1_RlySLP) = 1 Then
+                    P_Output()
+                    P_SaveSettings()
+                EndIf
+            Case 8
+                If P_EditYN(B_I1_Display) = 1 Then
+                    P_SaveSettings()
+                EndIf
         EndSelect
-        If P_UserAborted() <> 0 Then: Result = 0 : GoTo Exit_V_I1_Pressure : EndIf
+        Set b_ScrDirty
+    Case 2
+        Result = 0
+        GoTo Exit_V_I1_Pressure
+    Case 3
+        Result = 0
+        GoTo Exit_V_I1_Pressure
+EndSelect
+
+        If P_UserAborted() <> 0 Then
+            Result = 0
+            GoTo Exit_V_I1_Pressure
+        EndIf
     Wend
 GoTo Exit_V_I1_Pressure
 Exit_V_I1_Pressure:
