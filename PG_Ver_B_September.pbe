@@ -1,0 +1,2 @@
+ERROR
+Error at Line [195]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Cannot have a String parameter as ByRef. A ByRef parameter must be a Byte, Word, Long or Dword! ***

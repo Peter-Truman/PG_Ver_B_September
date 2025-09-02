@@ -57,16 +57,34 @@ Xtal   = 32                                   ' MHz (adjust if needed)
 All_Digital = True
 
 '---------------------------------------------------------------------
-' LCD (HD44780-compatible) 20x4 in 4-bit mode
-' NOTE: Adjust pins to your hardware. Uses Positron's LCD driver.
-' Safe to change here without touching code below.
-Declare LCD_DTPort = PORT                     ' DB4..DB7 on RB4..RB7
-Declare LCD_Interface = 4                      ' 4-bit interface
-Declare LCD_Lines = 4
-Declare LCD_RS_Pin = PORTA.0
-Declare LCD_EN_Pin = PORTA.1
-' If you wire RW, declare it; otherwise the driver uses timed delays.
-' Declare LCD_RW_Pin = PORTA.2
+
+Symbol _BUZZER   = PORTC.2
+
+' LCD (4-bit)
+Symbol LCD_D4_PIN = PORTA.0
+Symbol LCD_D5_PIN = PORTA.1
+Symbol LCD_D6_PIN = PORTA.2
+Symbol LCD_D7_PIN = PORTA.3
+Symbol LCD_RS_PIN = PORTA.6
+Symbol LCD_E_PIN  = PORTA.7
+
+' Rotary encoder + button
+Symbol _ENC_A    = PORTB.1
+Symbol _ENC_B    = PORTB.2
+Symbol _ENC_SW   = PORTB.6
+
+TRISA = %00010000                    ' RA4 input, others as required (LCD)
+TRISB = %01000110                    ' RB6, RB2, RB1 inputs (SW, B, A)
+TRISC = %00000000                    ' RC2 used for buzzer
+
+' LCD declares
+Declare LCD_Type      = 0
+Declare LCD_DTPin     = PORTA.0
+Declare LCD_ENPin     = PORTA.7
+Declare LCD_RSPin     = PORTA.6
+Declare LCD_Interface = 4
+Declare LCD_Lines     = 4
+
 
 '---------------------------------------------------------------------
 ' Encoder & button pins (adjust to your board)
