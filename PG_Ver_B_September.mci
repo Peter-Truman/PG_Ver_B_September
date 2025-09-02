@@ -1,9 +1,9 @@
 [Project]
 Filename=C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas
 [Environment]
-CaretX=1
-CaretY=88
-Topline=64
+CaretX=36
+CaretY=595
+Topline=544
 [Version]
 Enable=1
 Rollover=255
@@ -12,9 +12,9 @@ Minor=0
 Release=0
 Build=0
 [Results]
-Visible=0
+Visible=1
 Height=117
 View=1
 [Status]
-Message=Ready
-Image=0
+Message=Compilation errors
+Image=3

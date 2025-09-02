@@ -1,96 +1,28 @@
-'****************************************************************
-'*  Name    : UNTITLED.BAS                                      *
-'*  Author  : Peter W Truman                                    *
-'*  Notice  : Copyright (c) 2025 PCT Remote Sensing Pty Ltd     *
-'*          : All Rights Reserved                               *
-'*  Date    : 2/09/2025                                         *
-'*  Version : 1.0                                               *
-'*  Notes   :                                                   *
-'*          :                                                   *
-'****************************************************************
- '=====================================================================
+'=====================================================================
 ' IRRISYS HMI on Positron8 / PIC18F2525
 ' Single-file build: IRRISYS_MAIN.bas
 '=====================================================================
 '
 ' Device & clock (adjust as required for your board)
 Device = 18F2525
-
-Config_Start
-  OSC = INTIO67
-  FCMEN = OFF
-  IESO = OFF
-  PWRT = OFF
-  BOREN = SBORDIS
-  BORV = 3
-  WDT = OFF
-  WDTPS = 32768
-  CCP2MX = PORTC
-  PBADEN = OFF
-  LPT1OSC = OFF
-  MCLRE = On
-  STVREN = On
-  LVP = OFF
-  XINST = OFF
-  Debug = OFF
-  Cp0 = OFF
-  CP1 = OFF
-  CP2 = OFF
-  CPB = OFF
-  CPD = OFF
-  WRT0 = OFF
-  WRT1 = OFF
-  WRT2 = OFF
-  WRTC = OFF
-  WRTB = OFF
-  WRTD = OFF
-  EBTR0 = OFF
-  EBTR1 = OFF
-  EBTR2 = OFF
-  EBTRB = OFF
-Config_End
-
-OSCCON    = %01110000        ' 8 MHz
-OSCTUNE.6 = 1                ' PLL x4 -> 32 MHz
-
 Xtal   = 32                                   ' MHz (adjust if needed)
 All_Digital = True
 
 '---------------------------------------------------------------------
-
-Symbol _BUZZER   = PORTC.2
-
-' LCD (4-bit)
-Symbol LCD_D4_PIN = PORTA.0
-Symbol LCD_D5_PIN = PORTA.1
-Symbol LCD_D6_PIN = PORTA.2
-Symbol LCD_D7_PIN = PORTA.3
-Symbol LCD_RS_PIN = PORTA.6
-Symbol LCD_E_PIN  = PORTA.7
-
-' Rotary encoder + button
-Symbol _ENC_A    = PORTB.1
-Symbol _ENC_B    = PORTB.2
-Symbol _ENC_SW   = PORTB.6
-
-TRISA = %00010000                    ' RA4 input, others as required (LCD)
-TRISB = %01000110                    ' RB6, RB2, RB1 inputs (SW, B, A)
-TRISC = %00000000                    ' RC2 used for buzzer
-
-' LCD declares
-Declare LCD_Type      = 0
-Declare LCD_DTPin     = PORTA.0
-Declare LCD_ENPin     = PORTA.7
-Declare LCD_RSPin     = PORTA.6
+' LCD (HD44780-compatible) 20x4 in 4-bit mode
+Declare LCD_Type = 0
+Declare LCD_DTPin = PORTA.0
+Declare LCD_ENPin = PORTA.7
+Declare LCD_RSPin = PORTA.6
 Declare LCD_Interface = 4
-Declare LCD_Lines     = 4
-
+Declare LCD_Lines = 4
 
 '---------------------------------------------------------------------
 ' Encoder & button pins (adjust to your board)
-Symbol ENC_A = PORTC.0
-Symbol ENC_B = PORTC.1
-Symbol BTN   = PORTC.2                         ' Active-low push button
+Symbol ENC_A = PORTB.1
+Symbol ENC_B = PORTB.2
+Symbol BTN   = PORTB.6                         ' Active-low push button
+Symbol BUZZER = PORTC.2
 
 '---------------------------------------------------------------------
 ' UART (optional debug; keep disabled by default to save flash)
@@ -121,9 +53,9 @@ Const SENSOR_TEMP = 2
 
 '---------------------------------------------------------------------
 ' Global state
-Dim B_ReInitLCD  As Bit                       ' cleared at each menu entry
-Dim B_ScrDirty   As Bit                       ' request redraw of current view
-Dim B_Escape     As Bit                       ' shared escape flag for unwind
+Dim b_ReInitLCD  As Bit                       ' cleared at each menu entry
+Dim b_ScrDirty   As Bit                       ' request redraw of current view
+Dim b_Escape     As Bit                       ' shared escape flag for unwind
 
 Dim L_Millis     As Dword                     ' millisecond counter
 Dim L_LastInput  As Dword                     ' last input ms (activity)
@@ -131,7 +63,7 @@ Dim L_LastInput  As Dword                     ' last input ms (activity)
 ' Encoder state
 Dim B_EncPrev    As Byte
 Dim B_EncNow     As Byte
-Dim S_EncDelta   As SByte                     ' -1, 0, +1 per poll
+Dim B_EncDelta   As SByte                     ' -1, 0, +1 per poll
 
 ' Button state
 Dim B_BtnLast    As Byte                      ' 0=up,1=down
@@ -178,66 +110,66 @@ Dim B_I1_Display  As Byte
 '=====================================================================
 
 '--- Delay helper (ms)
-Proc DelayMsFast(pMs As Word)
-    Dim i As Word
-    For i = 1 To pMs
+Proc DelayMsFast(W_Ms As Word)
+    Dim W_I As Word
+    For W_I = 1 To W_Ms
         DelayMS 1
     Next
 EndProc
 
 '--- Clear a LCD line (1..4)
-Proc P_ClearLine(pRow As Byte)
-    Locate pRow, 1
+Proc P_ClearLine(B_Row As Byte)
+    Locate B_Row, 1
     Print "                    "   ' 20 spaces
 EndProc
 
 '--- Draw fixed title on line 1 (exactly 20 cols)
-Proc P_DrawTitle(ByRef pTitle As String)
-    Dim S As String * 20
-    S = Left$(pTitle + Space$(20), 20)
+Proc P_DrawTitle(S_Title As String)
+    Dim S_Line20 As String * 20
+    S_Line20 = Left$(S_Title + Space$(20), 20)
     Locate 1, 1
-    Print S
+    Print S_Line20
 EndProc
 
 '--- Print a bracketed row at given LCD line (2..4). If active, prefix "[" else space.
-Proc P_PrintRow(pRow As Byte, ByRef pText As String, pActive As Byte)
-    Dim S As String * 20
-    If pActive = 1 Then
-        S = "[" + pText
+Proc P_PrintRow(B_Row As Byte, S_Text As String, B_Active As Byte)
+    Dim S_Line20 As String * 20
+    If B_Active = 1 Then
+        S_Line20 = "[" + S_Text
     Else
-        S = " " + pText
+        S_Line20 = " " + S_Text
     EndIf
-    S = Left$(S + Space$(20), 20)
-    Locate pRow, 1
-    Print S
+    S_Line20 = Left$(S_Line20 + Space$(20), 20)
+    Locate B_Row, 1
+    Print S_Line20
 EndProc
 
 '--- Format mm:ss from seconds (0..5999 => 99:59)
-Proc P_PrintMMSS(pRow As Byte, pCol As Byte, pSeconds As Word)
-    Dim m As Word, s As Word
-    m = pSeconds / 60
-    s = pSeconds % 60
-    Locate pRow, pCol
-    If m < 10 Then
-        Print "0";Dec m;":"
+Proc P_PrintMMSS(B_Row As Byte, B_Col As Byte, W_Seconds As Word)
+    Dim B_Min As Word, B_Sec As Word
+    B_Min = W_Seconds / 60
+    B_Sec = W_Seconds % 60
+    Locate B_Row, B_Col
+    If B_Min < 10 Then
+        Print "0";Dec B_Min;":"
     Else
-        Print Dec m;":"
+        Print Dec B_Min;":"
     EndIf
-    If s < 10 Then
-        Print "0";Dec s
+    If B_Sec < 10 Then
+        Print "0";Dec B_Sec
     Else
-        Print Dec s
+        Print Dec B_Sec
     EndIf
 EndProc
 
 '--- Parse mm:ss editor state -> Word seconds
-Proc P_MMSS_ToSecs(m As Byte, s As Byte) As Word
-    Result = (m * 60) + s
+Proc P_MMSS_ToSecs(B_Min As Byte, B_Sec As Byte), Word
+    Result = (B_Min * 60) + B_Sec
 EndProc
 
 '--- Request a redraw of the current screen
 Proc P_RequestRedraw()
-    B_ScrDirty = 1
+    b_ScrDirty = 1
 EndProc
 
 '--- Activity bump (resets idle timer)
@@ -246,9 +178,9 @@ Proc P_MarkActive()
 EndProc
 
 '--- Clamp helper
-Proc P_ClampW(ByRef v As Word, mn As Word, mx As Word)
-    If v < mn Then: v = mn : EndIf
-    If v > mx Then: v = mx : EndIf
+Proc P_ClampW(ByRef W_Val As Word, W_Min As Word, W_Max As Word)
+    If W_Val < W_Min Then: W_Val = W_Min : EndIf
+    If W_Val > W_Max Then: W_Val = W_Max : EndIf
 EndProc
 
 '=====================================================================
@@ -256,53 +188,53 @@ EndProc
 '=====================================================================
 
 ' Byte
-Proc EReadB(addr As Word) As Byte
-    Result = ERead addr
+Proc EReadB(W_Addr As Word), Byte
+    Result = ERead W_Addr
 EndProc
 
-Proc EWriteB(addr As Word, v As Byte)
-    If ERead addr <> v Then: EWrite addr, v : EndIf
+Proc EWriteB(W_Addr As Word, B_Val As Byte)
+    If ERead W_Addr <> B_Val Then: EWrite W_Addr, B_Val : EndIf
 EndProc
 
 ' Word
-Proc EReadW(addr As Word) As Word
-    Dim lo As Byte, hi As Byte
-    lo = ERead addr
-    hi = ERead (addr + 1)
-    Result = MakeWord(hi, lo)
+Proc EReadW(W_Addr As Word), Word
+    Dim B_Lo As Byte, B_Hi As Byte
+    B_Lo = ERead W_Addr
+    B_Hi = ERead (W_Addr + 1)
+    Result = MakeWord(B_Hi, B_Lo)
 EndProc
 
-Proc EWriteW(addr As Word, v As Word)
-    Dim lo As Byte, hi As Byte
-    lo = Low v
-    hi = High v
-    If ERead addr <> lo Then: EWrite addr, lo : EndIf
-    If ERead (addr + 1) <> hi Then: EWrite (addr + 1), hi : EndIf
+Proc EWriteW(W_Addr As Word, W_Val As Word)
+    Dim B_Lo As Byte, B_Hi As Byte
+    B_Lo = Low W_Val
+    B_Hi = High W_Val
+    If ERead W_Addr <> B_Lo Then: EWrite W_Addr, B_Lo : EndIf
+    If ERead (W_Addr + 1) <> B_Hi Then: EWrite (W_Addr + 1), B_Hi : EndIf
 EndProc
 
 ' Dword (Long)
-Proc EReadL(addr As Word) As Dword
-    Dim b0 As Byte, b1 As Byte, b2 As Byte, b3 As Byte
-    b0 = ERead addr
-    b1 = ERead (addr + 1)
-    b2 = ERead (addr + 2)
-    b3 = ERead (addr + 3)
-    Result = (Dword)b3 << 24
-    Result = Result | ((Dword)b2 << 16)
-    Result = Result | ((Dword)b1 << 8)
-    Result = Result | (Dword)b0
+Proc EReadL(W_Addr As Word), Dword
+    Dim B_B0 As Byte, B_B1 As Byte, B_B2 As Byte, B_B3 As Byte
+    B_B0 = ERead W_Addr
+    B_B1 = ERead (W_Addr + 1)
+    B_B2 = ERead (W_Addr + 2)
+    B_B3 = ERead (W_Addr + 3)
+    Result = (Dword)B_B3 << 24
+    Result = Result | ((Dword)B_B2 << 16)
+    Result = Result | ((Dword)B_B1 << 8)
+    Result = Result | (Dword)B_B0
 EndProc
 
-Proc EWriteL(addr As Word, v As Dword)
-    Dim b0 As Byte, b1 As Byte, b2 As Byte, b3 As Byte
-    b0 = v & $FF
-    b1 = (v >> 8) & $FF
-    b2 = (v >> 16) & $FF
-    b3 = (v >> 24) & $FF
-    If ERead addr <> b0 Then: EWrite addr, b0 : EndIf
-    If ERead (addr + 1) <> b1 Then: EWrite (addr + 1), b1 : EndIf
-    If ERead (addr + 2) <> b2 Then: EWrite (addr + 2), b2 : EndIf
-    If ERead (addr + 3) <> b3 Then: EWrite (addr + 3), b3 : EndIf
+Proc EWriteL(W_Addr As Word, L_Val As Dword)
+    Dim B_B0 As Byte, B_B1 As Byte, B_B2 As Byte, B_B3 As Byte
+    B_B0 = L_Val & $FF
+    B_B1 = (L_Val >> 8) & $FF
+    B_B2 = (L_Val >> 16) & $FF
+    B_B3 = (L_Val >> 24) & $FF
+    If ERead W_Addr <> B_B0 Then: EWrite W_Addr, B_B0 : EndIf
+    If ERead (W_Addr + 1) <> B_B1 Then: EWrite (W_Addr + 1), B_B1 : EndIf
+    If ERead (W_Addr + 2) <> B_B2 Then: EWrite (W_Addr + 2), B_B2 : EndIf
+    If ERead (W_Addr + 3) <> B_B3 Then: EWrite (W_Addr + 3), B_B3 : EndIf
 EndProc
 
 ' Load settings (only Input1 for now)
@@ -342,49 +274,49 @@ EndProc
 
 '--- Read encoder once and produce delta -1/0/+1
 Proc P_ReadEncoder()
-    Dim a As Byte, b As Byte, state As Byte
-    a = ENC_A
-    b = ENC_B
-    If a = 0 Then: a = 0 Else: a = 1 : EndIf
-    If b = 0 Then: b = 0 Else: b = 1 : EndIf
-    state = (a << 1) | b
-    S_EncDelta = 0
+    Dim B_A As Byte, B_B As Byte, B_State As Byte
+    B_A = ENC_A
+    B_B = ENC_B
+    If B_A = 0 Then: B_A = 0 Else: B_A = 1 : EndIf
+    If B_B = 0 Then: B_B = 0 Else: B_B = 1 : EndIf
+    B_State = (B_A << 1) | B_B
+    B_EncDelta = 0
     Select B_EncPrev
         Case 0
-            If state = 1 Then: S_EncDelta = +1 : EndIf
-            If state = 2 Then: S_EncDelta = -1 : EndIf
+            If B_State = 1 Then: B_EncDelta = +1 : EndIf
+            If B_State = 2 Then: B_EncDelta = -1 : EndIf
         Case 1
-            If state = 3 Then: S_EncDelta = +1 : EndIf
-            If state = 0 Then: S_EncDelta = -1 : EndIf
+            If B_State = 3 Then: B_EncDelta = +1 : EndIf
+            If B_State = 0 Then: B_EncDelta = -1 : EndIf
         Case 3
-            If state = 2 Then: S_EncDelta = +1 : EndIf
-            If state = 1 Then: S_EncDelta = -1 : EndIf
+            If B_State = 2 Then: B_EncDelta = +1 : EndIf
+            If B_State = 1 Then: B_EncDelta = -1 : EndIf
         Case 2
-            If state = 0 Then: S_EncDelta = +1 : EndIf
-            If state = 3 Then: S_EncDelta = -1 : EndIf
+            If B_State = 0 Then: B_EncDelta = +1 : EndIf
+            If B_State = 3 Then: B_EncDelta = -1 : EndIf
     EndSelect
-    B_EncPrev = state
-    If S_EncDelta <> 0 Then: P_MarkActive : EndIf
+    B_EncPrev = B_State
+    If B_EncDelta <> 0 Then: P_MarkActive : EndIf
 EndProc
 
 '--- Read button and set key events (edge/level with duration)
 Proc P_ReadButton()
-    Dim down As Byte
-    down = (BTN = 0)                          ' active low
-    If down = 1 Then
+    Dim B_Down As Byte
+    B_Down = (BTN = 0)                          ' active low
+    If B_Down = 1 Then
         If B_BtnLast = 0 Then                 ' just pressed
             L_BtnDownMs = L_Millis
         EndIf
         B_BtnLast = 1
     Else
         If B_BtnLast = 1 Then                 ' just released
-            Dim dur As Dword
-            dur = L_Millis - L_BtnDownMs
-            If dur >= BTN_VLONG_MS Then
+            Dim L_Dur As Dword
+            L_Dur = L_Millis - L_BtnDownMs
+            If L_Dur >= BTN_VLONG_MS Then
                 B_KeyEvent = 3
-            ElseIf dur >= BTN_LONG_MS Then
+            ElseIf L_Dur >= BTN_LONG_MS Then
                 B_KeyEvent = 2
-            ElseIf dur >= BTN_SHORT_MS Then
+            ElseIf L_Dur >= BTN_SHORT_MS Then
                 B_KeyEvent = 1
             Else
                 B_KeyEvent = 0
@@ -396,19 +328,19 @@ Proc P_ReadButton()
 EndProc
 
 '--- Consume key event (returns and clears)
-Proc P_GetKeyEvent() As Byte
+Proc P_GetKeyEvent(), Byte
     Result = B_KeyEvent
     B_KeyEvent = 0
 EndProc
 
 '--- Inactivity/escape handler: returns non-zero if user wants to unwind
-Proc P_UserAborted() As Byte
-    Dim ev As Byte
-    ev = P_GetKeyEvent()
-    If ev = 2 Then: B_Escape = 1 : Result = 1 : ExitProc : EndIf ' long
-    If ev = 3 Then: B_Escape = 1 : Result = 1 : ExitProc : EndIf ' very long
+Proc P_UserAborted(), Byte
+    Dim B_Ev As Byte
+    B_Ev = P_GetKeyEvent()
+    If B_Ev = 2 Then: b_Escape = 1 : Result = 1 : ExitProc : EndIf ' long
+    If B_Ev = 3 Then: b_Escape = 1 : Result = 1 : ExitProc : EndIf ' very long
     If (L_Millis - L_LastInput) >= UI_TIMEOUT_MS Then
-        B_Escape = 1
+        b_Escape = 1
         Result = 1
         ExitProc
     EndIf
@@ -420,64 +352,64 @@ EndProc
 '=====================================================================
 
 '--- Yes/No editor
-Proc P_EditYN(ByRef v As Byte) As Byte
-    Dim cur As Byte
-    cur = v
+Proc P_EditYN(ByRef B_Val As Byte), Byte
+    Dim B_Cur As Byte
+    B_Cur = B_Val
     P_RequestRedraw
     While 1=1
-        If B_ScrDirty = 1 Then
+        If b_ScrDirty = 1 Then
             P_DrawTitle("EDIT: YES/NO")
             P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
             Locate 3, 1
-            If cur = YES Then
+            If B_Cur = YES Then
                 Print "[Yes]  No           "
             Else
                 Print " Yes  [No]          "
             EndIf
-            B_ScrDirty = 0
+            b_ScrDirty = 0
         EndIf
         P_ReadEncoder
-        If S_EncDelta <> 0 Then
-            If cur = YES Then: cur = NO Else: cur = YES : EndIf
+        If B_EncDelta <> 0 Then
+            If B_Cur = YES Then: B_Cur = NO Else: B_Cur = YES : EndIf
             P_RequestRedraw
         EndIf
         P_ReadButton
         Select P_GetKeyEvent()
-            Case 1 : v = cur : Result = 1 : ExitProc       ' short=save
-            Case 2,3 : Result = 0 : ExitProc               ' long=cancel
+            Case 1 : B_Val = B_Cur : Result = 1 : ExitProc       ' short=save
+            Case 2,3 : Result = 0 : ExitProc                      ' long=cancel
         EndSelect
         If P_UserAborted() <> 0 Then: Result = 0 : ExitProc : EndIf
     Wend
 EndProc
 
 '--- Enum3 editor: No/Pulse/Latch
-Proc P_EditEnum3(ByRef v As Byte) As Byte
-    Dim cur As Byte
-    cur = v
+Proc P_EditEnum3(ByRef B_Val As Byte), Byte
+    Dim B_Cur As Byte
+    B_Cur = B_Val
     P_RequestRedraw
     While 1=1
-        If B_ScrDirty = 1 Then
+        If b_ScrDirty = 1 Then
             P_DrawTitle("EDIT: OUTPUT MODE")
             P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
             Locate 3, 1
-            Select cur
+            Select B_Cur
                 Case MODE_NO    : Print "[No]  Pulse  Latch    "
                 Case MODE_PULSE : Print " No  [Pulse] Latch    "
                 Case MODE_LATCH : Print " No   Pulse [Latch]  "
             EndSelect
-            B_ScrDirty = 0
+            b_ScrDirty = 0
         EndIf
         P_ReadEncoder
-        If S_EncDelta = +1 Then
-            If cur < MODE_LATCH Then: cur = cur + 1 : EndIf
+        If B_EncDelta = +1 Then
+            If B_Cur < MODE_LATCH Then: B_Cur = B_Cur + 1 : EndIf
             P_RequestRedraw
-        ElseIf S_EncDelta = -1 Then
-            If cur > MODE_NO Then: cur = cur - 1 : EndIf
+        ElseIf B_EncDelta = -1 Then
+            If B_Cur > MODE_NO Then: B_Cur = B_Cur - 1 : EndIf
             P_RequestRedraw
         EndIf
         P_ReadButton
         Select P_GetKeyEvent()
-            Case 1 : v = cur : Result = 1 : ExitProc
+            Case 1 : B_Val = B_Cur : Result = 1 : ExitProc
             Case 2,3 : Result = 0 : ExitProc
         EndSelect
         If P_UserAborted() <> 0 Then: Result = 0 : ExitProc : EndIf
@@ -485,29 +417,29 @@ Proc P_EditEnum3(ByRef v As Byte) As Byte
 EndProc
 
 '--- Word editor (numeric up/down)
-Proc P_EditWordVal(ByRef v As Word, mn As Word, mx As Word, stepv As Word) As Byte
-    Dim cur As Word
-    cur = v
+Proc P_EditWordVal(ByRef W_Val As Word, W_Min As Word, W_Max As Word, W_Step As Word), Byte
+    Dim W_Cur As Word
+    W_Cur = W_Val
     P_RequestRedraw
     While 1=1
-        If B_ScrDirty = 1 Then
+        If b_ScrDirty = 1 Then
             P_DrawTitle("EDIT: WORD VALUE")
             P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
             Locate 3, 1
-            Print " Value: [";Dec cur;"]         "
-            B_ScrDirty = 0
+            Print " Value: [";Dec W_Cur;"]         "
+            b_ScrDirty = 0
         EndIf
         P_ReadEncoder
-        If S_EncDelta = +1 Then
-            If cur + stepv <= mx Then: cur = cur + stepv : EndIf
+        If B_EncDelta = +1 Then
+            If W_Cur + W_Step <= W_Max Then: W_Cur = W_Cur + W_Step : EndIf
             P_RequestRedraw
-        ElseIf S_EncDelta = -1 Then
-            If cur >= (mn + stepv) Then: cur = cur - stepv Else: cur = mn : EndIf
+        ElseIf B_EncDelta = -1 Then
+            If W_Cur >= (W_Min + W_Step) Then: W_Cur = W_Cur - W_Step Else: W_Cur = W_Min : EndIf
             P_RequestRedraw
         EndIf
         P_ReadButton
         Select P_GetKeyEvent()
-            Case 1 : v = cur : Result = 1 : ExitProc
+            Case 1 : W_Val = W_Cur : Result = 1 : ExitProc
             Case 2,3 : Result = 0 : ExitProc
         EndSelect
         If P_UserAborted() <> 0 Then: Result = 0 : ExitProc : EndIf
@@ -515,52 +447,52 @@ Proc P_EditWordVal(ByRef v As Word, mn As Word, mx As Word, stepv As Word) As By
 EndProc
 
 '--- mm:ss editor (0..99:59). Short=toggle field/save, Long=cancel
-Proc P_EditMMSS(ByRef v As Word) As Byte
-    Dim m As Byte, s As Byte, field As Byte
-    m = v / 60
-    s = v % 60
-    field = 0                                   ' 0=mm,1=ss
+Proc P_EditMMSS(ByRef W_Val As Word), Byte
+    Dim B_Min As Byte, B_Sec As Byte, B_Field As Byte
+    B_Min = W_Val / 60
+    B_Sec = W_Val % 60
+    B_Field = 0                                   ' 0=mm,1=ss
     P_RequestRedraw
     While 1=1
-        If B_ScrDirty = 1 Then
+        If b_ScrDirty = 1 Then
             P_DrawTitle("EDIT: DURATION")
             P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
             Locate 3, 1
-            If field = 0 Then
-                Print " [";If m<10 Then: Print "0" : EndIf;Dec m;
-                Print "] : ";If s<10 Then: Print "0" : EndIf;Dec s
+            If B_Field = 0 Then
+                Print " [";If B_Min<10 Then: Print "0" : EndIf;Dec B_Min;
+                Print "] : ";If B_Sec<10 Then: Print "0" : EndIf;Dec B_Sec
             Else
-                Print "  ";If m<10 Then: Print "0" : EndIf;Dec m;" : [";
-                If s<10 Then: Print "0" : EndIf;Dec s;
+                Print "  ";If B_Min<10 Then: Print "0" : EndIf;Dec B_Min;" : [";
+                If B_Sec<10 Then: Print "0" : EndIf;Dec B_Sec;
                 Print "]"
             EndIf
             Print Space$(20 - 13)                 ' pad to 20 cols
-            B_ScrDirty = 0
+            b_ScrDirty = 0
         EndIf
         P_ReadEncoder
-        If S_EncDelta = +1 Then
-            If field = 0 Then
-                If m < 99 Then: Inc m : EndIf
+        If B_EncDelta = +1 Then
+            If B_Field = 0 Then
+                If B_Min < 99 Then: Inc B_Min : EndIf
             Else
-                If s < 59 Then: Inc s : EndIf
+                If B_Sec < 59 Then: Inc B_Sec : EndIf
             EndIf
             P_RequestRedraw
-        ElseIf S_EncDelta = -1 Then
-            If field = 0 Then
-                If m > 0 Then: Dec m : EndIf
+        ElseIf B_EncDelta = -1 Then
+            If B_Field = 0 Then
+                If B_Min > 0 Then: Dec B_Min : EndIf
             Else
-                If s > 0 Then: Dec s : EndIf
+                If B_Sec > 0 Then: Dec B_Sec : EndIf
             EndIf
             P_RequestRedraw
         EndIf
         P_ReadButton
         Select P_GetKeyEvent()
             Case 1
-                If field = 0 Then
-                    field = 1
+                If B_Field = 0 Then
+                    B_Field = 1
                     P_RequestRedraw
                 Else
-                    v = P_MMSS_ToSecs(m, s)
+                    W_Val = P_MMSS_ToSecs(B_Min, B_Sec)
                     Result = 1
                     ExitProc
                 EndIf
@@ -592,7 +524,7 @@ EndProc
 
 '--- Main screen
 Proc V_Main()
-    B_ReInitLCD = 0
+    b_ReInitLCD = 0
     P_DrawTitle("IRRISYS MAIN        ")
     P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
     Locate 3,1 : Print "Press to open menu  "
@@ -610,57 +542,65 @@ Proc V_Main()
 EndProc
 
 '--- Options menu (3-row window example)
-Proc V_Options() As Byte
-    Dim sel As Byte, top As Byte
-    Dim cnt As Byte
-    cnt = 3                                     ' Main Menu, Setup Menu, Utility
-    sel = 0 : top = 0
-    B_ReInitLCD = 0
+Proc V_Options(), Byte
+    Dim B_Sel As Byte, B_Top As Byte
+    Dim B_Cnt As Byte
+    B_Cnt = 3                                     ' Main Menu, Setup Menu, Utility
+    B_Sel = 0 : B_Top = 0
+    b_ReInitLCD = 0
     P_RequestRedraw
     While 1=1
-        If B_ScrDirty = 1 Then
+        If b_ScrDirty = 1 Then
             P_DrawTitle("OPTIONS             ")
             P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
             ' compute window
-            If sel < top Then: top = sel : EndIf
-            If sel > (top + 2) Then: top = sel - 2 : EndIf
+            If B_Sel < B_Top Then: B_Top = B_Sel : EndIf
+            If B_Sel > (B_Top + 2) Then: B_Top = B_Sel - 2 : EndIf
             ' render items
-            Select top
+            Select B_Top
                 Case 0
-                    P_PrintRow 2, "Main Menu", IIf(sel=0,1,0)
-                    P_PrintRow 3, "Setup Menu", IIf(sel=1,1,0)
-                    P_PrintRow 4, "Utility Menu", IIf(sel=2,1,0)
+                    P_PrintRow 2, "Main Menu", IIf(B_Sel=0,1,0)
+                    P_PrintRow 3, "Setup Menu", IIf(B_Sel=1,1,0)
+                    P_PrintRow 4, "Utility Menu", IIf(B_Sel=2,1,0)
                 Case Else
                     ' not needed for 3 items
             EndSelect
-            B_ScrDirty = 0
+            b_ScrDirty = 0
         EndIf
         P_ReadEncoder
-        If S_EncDelta = +1 Then
-            If sel < (cnt-1) Then: Inc sel : P_RequestRedraw : EndIf
-        ElseIf S_EncDelta = -1 Then
-            If sel > 0 Then: Dec sel : P_RequestRedraw : EndIf
+        If B_EncDelta = +1 Then
+            If B_Sel < (B_Cnt-1) Then: Inc B_Sel : P_RequestRedraw : EndIf
+        ElseIf B_EncDelta = -1 Then
+            If B_Sel > 0 Then: Dec B_Sel : P_RequestRedraw : EndIf
         EndIf
         P_ReadButton
         Select P_GetKeyEvent()
             Case 1
-                Select sel
-                    Case 0 : Result = 1 : ExitProc          ' go to Main Menu (upper)
-                    Case 1 : If V_SetupMenu() = 0 Then: Result = 0 : ExitProc : EndIf
-                    Case 2 : ' Utility not implemented yet
+                Select B_Sel
+                    Case 0
+                        Result = 1
+                        GoTo Exit_V_Options                                           ' go to Main Menu (upper)
+                    Case 1
+                        If V_SetupMenu() = 0 Then
+                            Result = 0
+                            GoTo Exit_V_Options
+                        EndIf
+                    Case 2                                                            ' Utility not implemented yet
                              ' Placeholder: just show a stub screen
                              V_UtilityStub()
                 EndSelect
                 P_RequestRedraw
             Case 2,3
-                Result = 0 : ExitProc                        ' unwind
+                Result = 0
+                GoTo Exit_V_Options                       ' unwind
         EndSelect
         If P_UserAborted() <> 0 Then: Result = 0 : ExitProc : EndIf
     Wend
+    Exit_V_Options:
 EndProc
 
 Proc V_UtilityStub()
-    B_ReInitLCD = 0
+    b_ReInitLCD = 0
     P_DrawTitle("UTILITY (STUB)      ")
     P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
     Locate 3,1: Print "Coming soon...      "
@@ -674,37 +614,37 @@ Proc V_UtilityStub()
 EndProc
 
 '--- Setup Menu: Choose Input 1/2/3 (and Clock off-screen later)
-Proc V_SetupMenu() As Byte
-    Dim sel As Byte, top As Byte
-    Dim cnt As Byte
-    cnt = 3                                     ' Input1..3 for this pass
-    sel = 0 : top = 0
-    B_ReInitLCD = 0
+Proc V_SetupMenu(), Byte
+    Dim B_Sel As Byte, B_Top As Byte
+    Dim B_Cnt As Byte
+    B_Cnt = 3                                     ' Input1..3 for this pass
+    B_Sel = 0 : B_Top = 0
+    b_ReInitLCD = 0
     P_RequestRedraw
     While 1=1
-        If B_ScrDirty = 1 Then
+        If b_ScrDirty = 1 Then
             P_DrawTitle("SETUP               ")
             P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
-            If sel < top Then: top = sel : EndIf
-            If sel > (top + 2) Then: top = sel - 2 : EndIf
-            Select top
+            If B_Sel < B_Top Then: B_Top = B_Sel : EndIf
+            If B_Sel > (B_Top + 2) Then: B_Top = B_Sel - 2 : EndIf
+            Select B_Top
                 Case 0
-                    P_PrintRow 2, "Input 1", IIf(sel=0,1,0)
-                    P_PrintRow 3, "Input 2", IIf(sel=1,1,0)
-                    P_PrintRow 4, "Input 3", IIf(sel=2,1,0)
+                    P_PrintRow 2, "Input 1", IIf(B_Sel=0,1,0)
+                    P_PrintRow 3, "Input 2", IIf(B_Sel=1,1,0)
+                    P_PrintRow 4, "Input 3", IIf(B_Sel=2,1,0)
             EndSelect
-            B_ScrDirty = 0
+            b_ScrDirty = 0
         EndIf
         P_ReadEncoder
-        If S_EncDelta = +1 Then
-            If sel < (cnt-1) Then: Inc sel : P_RequestRedraw : EndIf
-        ElseIf S_EncDelta = -1 Then
-            If sel > 0 Then: Dec sel : P_RequestRedraw : EndIf
+        If B_EncDelta = +1 Then
+            If B_Sel < (B_Cnt-1) Then: Inc B_Sel : P_RequestRedraw : EndIf
+        ElseIf B_EncDelta = -1 Then
+            If B_Sel > 0 Then: Dec B_Sel : P_RequestRedraw : EndIf
         EndIf
         P_ReadButton
         Select P_GetKeyEvent()
             Case 1
-                Select sel
+                Select B_Sel
                     Case 0 : If V_Input1Menu() = 0 Then: Result = 0 : ExitProc : EndIf
                     Case 1 : V_NotImpl("INPUT 2")
                     Case 2 : V_NotImpl("INPUT 3")
@@ -717,9 +657,9 @@ Proc V_SetupMenu() As Byte
     Wend
 EndProc
 
-Proc V_NotImpl(ByRef name As String)
-    B_ReInitLCD = 0
-    P_DrawTitle(name + " (STUB)      ")
+Proc V_NotImpl(S_Name As String)
+    b_ReInitLCD = 0
+    P_DrawTitle(S_Name + " (STUB)      ")
     P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
     Locate 3,1: Print "Not implemented     "
     While 1=1
@@ -732,30 +672,30 @@ Proc V_NotImpl(ByRef name As String)
 EndProc
 
 '--- Input 1 menu: Enable + Sensor -> Pressure flow (this pass: Pressure)
-Proc V_Input1Menu() As Byte
-    Dim sel As Byte
-    sel = 0
-    B_ReInitLCD = 0
+Proc V_Input1Menu(), Byte
+    Dim B_Sel As Byte
+    B_Sel = 0
+    b_ReInitLCD = 0
     P_RequestRedraw
     While 1=1
-        If B_ScrDirty = 1 Then
+        If b_ScrDirty = 1 Then
             P_DrawTitle("INPUT 1             ")
             P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
-            P_PrintRow 2, "Enable", IIf(sel=0,1,0)
-            P_PrintRow 3, "Sensor Type", IIf(sel=1,1,0)
-            P_PrintRow 4, "Edit Params", IIf(sel=2,1,0)
-            B_ScrDirty = 0
+            P_PrintRow 2, "Enable", IIf(B_Sel=0,1,0)
+            P_PrintRow 3, "Sensor Type", IIf(B_Sel=1,1,0)
+            P_PrintRow 4, "Edit Params", IIf(B_Sel=2,1,0)
+            b_ScrDirty = 0
         EndIf
         P_ReadEncoder
-        If S_EncDelta = +1 Then
-            If sel < 2 Then: Inc sel : P_RequestRedraw : EndIf
-        ElseIf S_EncDelta = -1 Then
-            If sel > 0 Then: Dec sel : P_RequestRedraw : EndIf
+        If B_EncDelta = +1 Then
+            If B_Sel < 2 Then: Inc B_Sel : P_RequestRedraw : EndIf
+        ElseIf B_EncDelta = -1 Then
+            If B_Sel > 0 Then: Dec B_Sel : P_RequestRedraw : EndIf
         EndIf
         P_ReadButton
         Select P_GetKeyEvent()
             Case 1
-                Select sel
+                Select B_Sel
                     Case 0 : If P_EditYN(B_I1_Enabled) = 1 Then: P_SaveSettings : EndIf
                     Case 1 : If V_Input1Sensor() = 0 Then: Result = 0 : ExitProc : EndIf
                     Case 2 : If B_I1_Enabled = YES Then
@@ -777,29 +717,29 @@ Proc V_Input1Menu() As Byte
 EndProc
 
 '--- Choose sensor type for Input1 (Flow/Pressure/Temperature)
-Proc V_Input1Sensor() As Byte
-    Dim sel As Byte
-    sel = B_I1_SensorT
-    B_ReInitLCD = 0
+Proc V_Input1Sensor(), Byte
+    Dim B_Sel As Byte
+    B_Sel = B_I1_SensorT
+    b_ReInitLCD = 0
     P_RequestRedraw
     While 1=1
-        If B_ScrDirty = 1 Then
+        If b_ScrDirty = 1 Then
             P_DrawTitle("SENSOR TYPE         ")
             P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
-            P_PrintRow 2, "Flow", IIf(sel=0,1,0)
-            P_PrintRow 3, "Pressure", IIf(sel=1,1,0)
-            P_PrintRow 4, "Temperature", IIf(sel=2,1,0)
-            B_ScrDirty = 0
+            P_PrintRow 2, "Flow", IIf(B_Sel=0,1,0)
+            P_PrintRow 3, "Pressure", IIf(B_Sel=1,1,0)
+            P_PrintRow 4, "Temperature", IIf(B_Sel=2,1,0)
+            b_ScrDirty = 0
         EndIf
         P_ReadEncoder
-        If S_EncDelta = +1 Then
-            If sel < 2 Then: Inc sel : P_RequestRedraw : EndIf
-        ElseIf S_EncDelta = -1 Then
-            If sel > 0 Then: Dec sel : P_RequestRedraw : EndIf
+        If B_EncDelta = +1 Then
+            If B_Sel < 2 Then: Inc B_Sel : P_RequestRedraw : EndIf
+        ElseIf B_EncDelta = -1 Then
+            If B_Sel > 0 Then: Dec B_Sel : P_RequestRedraw : EndIf
         EndIf
         P_ReadButton
         Select P_GetKeyEvent()
-            Case 1 : B_I1_SensorT = sel : P_SaveSettings : Result = 1 : ExitProc
+            Case 1 : B_I1_SensorT = B_Sel : P_SaveSettings : Result = 1 : ExitProc
             Case 2,3 : Result = 0 : ExitProc
         EndSelect
         If P_UserAborted() <> 0 Then: Result = 0 : ExitProc : EndIf
@@ -807,62 +747,62 @@ Proc V_Input1Sensor() As Byte
 EndProc
 
 '--- Input1 Pressure editor list (subset implemented)
-Proc V_I1_Pressure() As Byte
-    Dim sel As Byte, cnt As Byte
-    sel = 0
-    cnt = 8                                      ' up to Display; extend later
-    B_ReInitLCD = 0
+Proc V_I1_Pressure(), Byte
+    Dim B_Sel As Byte, B_Cnt As Byte
+    B_Sel = 0
+    B_Cnt = 8                                      ' up to Display; extend later
+    b_ReInitLCD = 0
     P_RequestRedraw
     While 1=1
-        If B_ScrDirty = 1 Then
+        If b_ScrDirty = 1 Then
             P_DrawTitle("I1 PRESSURE         ")
             P_ClearLine 2: P_ClearLine 3: P_ClearLine 4
-            ' Render 3-row list window based on sel
-            Dim top As Byte
-            If sel <= 1 Then: top = 0 ElseIf sel = 2 Then: top = 1 ElseIf sel = 3 Then: top = 2 ElseIf sel = 4 Then: top = 3 ElseIf sel = 5 Then: top = 4 ElseIf sel = 6 Then: top = 5 Else: top = sel-2 : EndIf
+            ' Render 3-row list window based on B_Sel
+            Dim B_Top As Byte
+            If B_Sel <= 1 Then: B_Top = 0 ElseIf B_Sel = 2 Then: B_Top = 1 ElseIf B_Sel = 3 Then: B_Top = 2 ElseIf B_Sel = 4 Then: B_Top = 3 ElseIf B_Sel = 5 Then: B_Top = 4 ElseIf B_Sel = 6 Then: B_Top = 5 Else: B_Top = B_Sel-2 : EndIf
             ' Lines text (fixed labels, values drawn inline where useful)
-            Select top
+            Select B_Top
                 Case 0
-                    P_PrintRow 2, "Scale 4ma   [" + Str$(W_I1_Scale4) + "]", IIf(sel=0,1,0)
-                    P_PrintRow 3, "Scale 20ma  [" + Str$(W_I1_Scale20) + "]", IIf(sel=1,1,0)
-                    P_PrintRow 4, "High BP     [mm:ss]", IIf(sel=2,1,0)
+                    P_PrintRow 2, "Scale 4ma   [" + Str$(W_I1_Scale4) + "]", IIf(B_Sel=0,1,0)
+                    P_PrintRow 3, "Scale 20ma  [" + Str$(W_I1_Scale20) + "]", IIf(B_Sel=1,1,0)
+                    P_PrintRow 4, "High BP     [mm:ss]", IIf(B_Sel=2,1,0)
                 Case 1
-                    P_PrintRow 2, "Scale 20ma  [" + Str$(W_I1_Scale20) + "]", IIf(sel=1,1,0)
-                    P_PrintRow 3, "High BP     [mm:ss]", IIf(sel=2,1,0)
-                    P_PrintRow 4, "PLPBP       [mm:ss]", IIf(sel=3,1,0)
+                    P_PrintRow 2, "Scale 20ma  [" + Str$(W_I1_Scale20) + "]", IIf(B_Sel=1,1,0)
+                    P_PrintRow 3, "High BP     [mm:ss]", IIf(B_Sel=2,1,0)
+                    P_PrintRow 4, "PLPBP       [mm:ss]", IIf(B_Sel=3,1,0)
                 Case 2
-                    P_PrintRow 2, "High BP     [mm:ss]", IIf(sel=2,1,0)
-                    P_PrintRow 3, "PLPBP       [mm:ss]", IIf(sel=3,1,0)
-                    P_PrintRow 4, "SLPBP       [mm:ss]", IIf(sel=4,1,0)
+                    P_PrintRow 2, "High BP     [mm:ss]", IIf(B_Sel=2,1,0)
+                    P_PrintRow 3, "PLPBP       [mm:ss]", IIf(B_Sel=3,1,0)
+                    P_PrintRow 4, "SLPBP       [mm:ss]", IIf(B_Sel=4,1,0)
                 Case 3
-                    P_PrintRow 2, "PLPBP       [mm:ss]", IIf(sel=3,1,0)
-                    P_PrintRow 3, "SLPBP       [mm:ss]", IIf(sel=4,1,0)
-                    P_PrintRow 4, "Rly High    [L/P/No]", IIf(sel=5,1,0)
+                    P_PrintRow 2, "PLPBP       [mm:ss]", IIf(B_Sel=3,1,0)
+                    P_PrintRow 3, "SLPBP       [mm:ss]", IIf(B_Sel=4,1,0)
+                    P_PrintRow 4, "Rly High    [L/P/No]", IIf(B_Sel=5,1,0)
                 Case 4
-                    P_PrintRow 2, "SLPBP       [mm:ss]", IIf(sel=4,1,0)
-                    P_PrintRow 3, "Rly High    [L/P/No]", IIf(sel=5,1,0)
-                    P_PrintRow 4, "Rly PLB     [L/P/No]", IIf(sel=6,1,0)
+                    P_PrintRow 2, "SLPBP       [mm:ss]", IIf(B_Sel=4,1,0)
+                    P_PrintRow 3, "Rly High    [L/P/No]", IIf(B_Sel=5,1,0)
+                    P_PrintRow 4, "Rly PLB     [L/P/No]", IIf(B_Sel=6,1,0)
                 Case 5
-                    P_PrintRow 2, "Rly High    [L/P/No]", IIf(sel=5,1,0)
-                    P_PrintRow 3, "Rly PLB     [L/P/No]", IIf(sel=6,1,0)
-                    P_PrintRow 4, "Rly SLP     [L/P/No]", IIf(sel=7,1,0)
+                    P_PrintRow 2, "Rly High    [L/P/No]", IIf(B_Sel=5,1,0)
+                    P_PrintRow 3, "Rly PLB     [L/P/No]", IIf(B_Sel=6,1,0)
+                    P_PrintRow 4, "Rly SLP     [L/P/No]", IIf(B_Sel=7,1,0)
                 Case Else
-                    P_PrintRow 2, "Rly PLB     [L/P/No]", IIf(sel=6,1,0)
-                    P_PrintRow 3, "Rly SLP     [L/P/No]", IIf(sel=7,1,0)
-                    P_PrintRow 4, "Display     [Yes/No]", IIf(sel=8,1,0)
+                    P_PrintRow 2, "Rly PLB     [L/P/No]", IIf(B_Sel=6,1,0)
+                    P_PrintRow 3, "Rly SLP     [L/P/No]", IIf(B_Sel=7,1,0)
+                    P_PrintRow 4, "Display     [Yes/No]", IIf(B_Sel=8,1,0)
             EndSelect
-            B_ScrDirty = 0
+            b_ScrDirty = 0
         EndIf
         P_ReadEncoder
-        If S_EncDelta = +1 Then
-            If sel < (cnt-1) Then: Inc sel : P_RequestRedraw : EndIf
-        ElseIf S_EncDelta = -1 Then
-            If sel > 0 Then: Dec sel : P_RequestRedraw : EndIf
+        If B_EncDelta = +1 Then
+            If B_Sel < (B_Cnt-1) Then: Inc B_Sel : P_RequestRedraw : EndIf
+        ElseIf B_EncDelta = -1 Then
+            If B_Sel > 0 Then: Dec B_Sel : P_RequestRedraw : EndIf
         EndIf
         P_ReadButton
         Select P_GetKeyEvent()
             Case 1
-                Select sel
+                Select B_Sel
                     Case 0 : If P_EditWordVal(W_I1_Scale4, 0, 65535, 1) = 1 Then: P_Scale : P_SaveSettings : EndIf
                     Case 1 : If P_EditWordVal(W_I1_Scale20, 0, 65535, 1) = 1 Then: P_Scale : P_SaveSettings : EndIf
                     Case 2 : If P_EditMMSS(W_I1_BP_High) = 1 Then: P_Output : P_SaveSettings : EndIf
@@ -885,13 +825,13 @@ EndProc
 '                TIMER0 TICK (1ms) AND INITIALISATION
 '=====================================================================
 
-'--- Configure Timer0 for ~1ms tick @ 20MHz (adjust as required)
+'--- Configure Timer0 for ~1ms tick @ 32MHz (adjust as required)
 Proc P_Timer0Init()
-    ' 20MHz => Fosc/4 = 5MHz => 0.2us per tick
-    ' Use 8-bit, prescaler 1:64 => 12.8us per tick. Need ~1ms => 1000/12.8 ˜ 78 ticks.
-    ' Preload so overflow in ~1ms: 256 - 78 = 178
-    T0CON = %11000100          ' TMR0 ON, 8-bit, prescale 1:32 (adjust below if needed)
-    TMR0L = 178
+    ' 32MHz => Fosc/4 = 8MHz => 0.125us per tick
+    ' 8-bit, prescaler 1:32 => 4us per tick. Need ~1ms => 250 ticks.
+    ' Preload so overflow in ~1ms: 256 - 250 = 6
+    T0CON = %11000100          ' TMR0 ON, 8-bit, prescale 1:32 @ 32MHz
+    TMR0L = 6
     INTCON.TMR0IF = 0
     INTCON.TMR0IE = 1
     INTCON.GIE = 1
@@ -901,8 +841,9 @@ EndProc
 On_Hardware_Interrupt GoTo Isr
 
 Isr:
+    Context Save
     If INTCON.TMR0IF = 1 Then
-        TMR0L = 178
+        TMR0L = 6
         INTCON.TMR0IF = 0
         Inc L_Millis
     EndIf
@@ -910,10 +851,10 @@ Isr:
 
 '--- GPIO directions
 Proc P_PinInit()
-    TRISA = %11111000        ' RA0..RA2 LCD ctrl as outputs; others inputs by default
-    TRISB = %00000000        ' LCD D4..D7 on RB4..RB7 => outputs (low nibble can be outputs too)
-    TRISC = %11111111        ' ENC_A/B and BTN as inputs
-    ' Enable weak pullups if needed for BTN/ENC via WPUC (device-dependent)
+    TRISA = %00010000        ' RA4 input, others outputs for LCD
+    TRISB = %01000110        ' RB6,RB2,RB1 inputs (SW,B,A)
+    TRISC = %00000000        ' RC2 buzzer output; others as required
+    ' Enable weak pullups if needed for BTN/ENC via WPUx (device-dependent)
 EndProc
 
 '--- LCD safe init wrapper
@@ -935,9 +876,9 @@ P_LCDSafeInit
 P_LoadSettings
 
 ' Init UI state
-B_ScrDirty = 1
-B_ReInitLCD = 0
-B_Escape = 0
+b_ScrDirty = 1
+b_ReInitLCD = 0
+b_Escape = 0
 B_BtnLast = 0
 B_KeyEvent = 0
 B_EncPrev = 0
