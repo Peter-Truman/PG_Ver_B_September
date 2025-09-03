@@ -1,15 +1,3 @@
-ERROR
-Error at Line [243]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' _ENC_SW ' not found! ***
-Error at Line [357]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' _ENC_SW ' not found! ***
-Error at Line [872]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_ReadButton ' not found! ***
-Error at Line [944]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_ReadButton ' not found! ***
-Error at Line [983]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_ReadButton ' not found! ***
-Error at Line [1045]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_ReadButton ' not found! ***
-Error at Line [1081]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_ReadButton ' not found! ***
-Error at Line [1141]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_ReadButton ' not found! ***
-Error at Line [668]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_ReadButton ' not found! ***
-Error at Line [1231]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_ReadButton ' not found! ***
-Error at Line [1428]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_ReadButton ' not found! ***
-Error at Line [716]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_ReadButton ' not found! ***
-Error at Line [762]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_ReadButton ' not found! ***
-Error at Line [818]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_ReadButton ' not found! ***
+18F2525,8052,229,32
+    Program Compiled OK. 8052 Bytes used from a possible 49152
+    229 Variables used in the 18F2525 from a possible 3967
