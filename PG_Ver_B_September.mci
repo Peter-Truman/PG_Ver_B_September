@@ -1,20 +1,20 @@
 [Project]
 Filename=C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas
 [Environment]
-CaretX=27
-CaretY=873
-Topline=873
+CaretX=22
+CaretY=1514
+Topline=1501
 [Version]
 Enable=1
 Rollover=255
 Major=0
 Minor=0
 Release=0
-Build=35
+Build=67
 [Results]
 Visible=1
 Height=117
-View=1
+View=2
 [Status]
-Message=Compilation errors
-Image=3
+Message=Success : 10560 program bytes used, 387 variable bytes used
+Image=0

@@ -1,12 +1,3 @@
-ERROR
-Error at Line [1018]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_EditYN ' not found! ***
-Error at Line [1020]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_EditEnum3 ' not found! ***
-Error at Line [1022]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_EditWordVal ' not found! ***
-Error at Line [1024]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_EditWordVal ' not found! ***
-Error at Line [1027]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_EditMMSS ' not found! ***
-Error at Line [1031]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_EditMMSS ' not found! ***
-Error at Line [1035]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_EditMMSS ' not found! ***
-Error at Line [1038]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_EditEnum3 ' not found! ***
-Error at Line [1040]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_EditEnum3 ' not found! ***
-Error at Line [1042]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_EditEnum3 ' not found! ***
-Error at Line [1044]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Item ' P_EditYN ' not found! ***
+18F2525,10566,387,32
+    Program Compiled OK. 10566 Bytes used from a possible 49152
+    387 Variables used in the 18F2525 from a possible 3967
