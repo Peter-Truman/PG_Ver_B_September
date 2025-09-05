@@ -1,9 +1,9 @@
 [Project]
 Filename=C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas
 [Environment]
-CaretX=22
-CaretY=1514
-Topline=1501
+CaretX=8
+CaretY=6
+Topline=1
 [Version]
 Enable=1
 Rollover=255
@@ -16,5 +16,5 @@ Visible=1
 Height=117
 View=2
 [Status]
-Message=Success : 10560 program bytes used, 387 variable bytes used
+Message=Success : 10566 program bytes used, 387 variable bytes used
 Image=0

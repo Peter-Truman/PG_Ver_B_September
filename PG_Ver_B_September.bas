@@ -3,6 +3,8 @@
 ' Single-file build: IRRISYS_MAIN.bas
 '=====================================================================
 
+'5/9/25
+
 Device = 18F2525
 
 Config_Start
@@ -1507,6 +1509,7 @@ Proc V_SetupMenu(), Byte
     B_Top = 0
     b_ReInitLCD = 0
     Set b_ScrDirty
+
 
     While 1 = 1
         If b_ScrDirty = 1 Then
