@@ -275,10 +275,10 @@ Isr:
         ' ---- 10 ms debounce/sample bucket ----
         Inc B_RE_Count
         If B_RE_Count > 9 Then
-            Dim B_NewA   As Byte
-            Dim B_NewB   As Byte
-            Dim B_NewBtn As Byte
-            Dim B_Curr   As Byte
+            Dim B_NewA     As Byte
+            Dim B_NewB     As Byte
+            Dim B_NewBtn   As Byte
+            Dim B_Curr     As Byte
             Dim B_Combined As Byte
 
             B_NewA   = _ENC_A
@@ -349,48 +349,18 @@ Isr:
             EndIf
             B_LastState = B_Curr
 
-            ' --- Button press timing -> immediate medium/long, short on release ---
-            ' Sample period ~10 ms, add 10 each bucket to compare against *_MS thresholds.
+            ' --- Button press timing -> SHORT only (on release) ---
+            ' Sample period ~10 ms
             If B_ButtonState = 0 Then
                 If W_BtnHoldMS <= 65525 Then
                     W_BtnHoldMS = W_BtnHoldMS + 10
                 EndIf
-
-                ' Fire LONG first time threshold is crossed
-                If W_BtnHoldMS >= VERY_LONG_MS Then
-                    If B_LongSent = 0 Then
-                        B_KeyEvent = 3
-                        B_LongSent = 1
-                        B_MedSent = 1
-                        L_LastInput = L_Millis
-                    EndIf
-                Else
-                    ' Fire MEDIUM first time threshold is crossed
-                    If W_BtnHoldMS >= LONG_MS Then
-                        If B_MedSent = 0 Then
-                            B_KeyEvent = 2
-                            B_MedSent = 1
-                            L_LastInput = L_Millis
-                        EndIf
-                    EndIf
-                EndIf
-
             Else
-                ' On release: if no medium/long was sent, consider SHORT
-                If W_BtnHoldMS > 0 Then
-                    If B_MedSent = 0 Then
-                        If B_LongSent = 0 Then
-                            If W_BtnHoldMS >= BTN_SHORT_MS Then
-                                B_KeyEvent = 1
-                                L_LastInput = L_Millis
-                            EndIf
-                        EndIf
-                    EndIf
-                    ' Reset for next press
-                    W_BtnHoldMS = 0
-                    B_MedSent = 0
-                    B_LongSent = 0
+                If W_BtnHoldMS >= BTN_SHORT_MS Then
+                    B_KeyEvent = 1            ' Short press event
+                    L_LastInput = L_Millis
                 EndIf
+                W_BtnHoldMS = 0              ' Reset for next press
             EndIf
 
             Clear B_RE_Count
@@ -407,12 +377,28 @@ Isr:
 
     Context Restore
 
+
 '=====================================================================
 Over_Interrupt:
 
 '=====================================================================
 ' PROCS / HELPERS
 '=====================================================================
+Proc P_UserAborted(), Byte
+    Dim L_TimeoutMs As Dword
+    L_TimeoutMs = W_UI_TimeoutS * 1000
+
+    If (L_Millis - L_LastInput) >= L_TimeoutMs Then
+        If b_Escape = 0 Then
+            b_Escape = 1
+            P_Beeps(4)                  ' one-time timeout beep
+            B_NavCode = 2               ' suggest caller go to main
+        EndIf
+        Result = 1
+    Else
+        Result = 0
+    EndIf
+EndProc
 
 '---------- LCD hard init for NHD-0420AZ (ST7066U) ----------
 Symbol LCD_RS = PORTA.6
@@ -893,6 +879,7 @@ Proc P_EditYN(ByRef B_Val As Byte), Byte
     Set b_ScrDirty
     While 1 = 1
         If b_ScrDirty = 1 Then
+            P_Beeps(1)
             P_DrawTitle("EDIT: YES/NO       ")
             P_ClearLine(2)
             P_ClearLine(3)
@@ -946,6 +933,7 @@ Proc P_EditEnum3(ByRef B_Val As Byte), Byte
     Set b_ScrDirty
     While 1 = 1
         If b_ScrDirty = 1 Then
+            P_Beeps(1)
             P_DrawTitle("EDIT: MODE         ")
             P_ClearLine(2)
             P_ClearLine(3)
@@ -1007,6 +995,7 @@ Proc P_EditWordVal(ByRef W_Val As Word, W_Min As Word, W_Max As Word, W_Step As 
     Set b_ScrDirty
     While 1 = 1
         If b_ScrDirty = 1 Then
+            P_Beeps(1)
             P_DrawTitle("EDIT: WORD VALUE   ")
             P_ClearLine(2)
             P_ClearLine(3)
@@ -1067,6 +1056,7 @@ Proc P_EditMMSS(ByRef W_Val As Word), Byte
     Set b_ScrDirty
     While 1 = 1
         If b_ScrDirty = 1 Then
+            P_Beeps(1)
             P_DrawTitle("EDIT: DURATION     ")
             P_ClearLine(2)
             P_ClearLine(3)
@@ -1144,17 +1134,21 @@ Proc P_ClearValField(B_Row As Byte, B_Col As Byte)
 EndProc
 
 Proc P_PrintValText(B_Row As Byte, B_Col As Byte, S_Value As String, B_Active As Byte, B_CanEdit As Byte)
-    P_ClearValField(B_Row, B_Col)
+    Dim B_Len As Byte
+
+    P_ClearValField(B_Row, B_Col)                 ' clears 10 chars starting at B_Col
+
     If B_Active = 1 And B_CanEdit = 1 Then
+        B_Len = Len(S_Value)                      ' dynamic closing bracket position
         Print At B_Row, B_Col,   "["
         Print At B_Row, B_Col+1, S_Value
-        Print At B_Row, B_Col+9, "]"
+        Print At B_Row, B_Col+1+B_Len, "]"
     Else
         Print At B_Row, B_Col,   " "
         Print At B_Row, B_Col+1, S_Value
     EndIf
 EndProc
-
+'---------------------------------------------------------------
 Proc P_PrintValWord(B_Row As Byte, B_Col As Byte, W_Val As Word, B_Active As Byte)
     P_ClearValField(B_Row, B_Col)
     If B_Active = 1 Then
@@ -1408,44 +1402,69 @@ Proc V_Main()
     Wend
 Exit_V_Main:
 EndProc
-
+'--------------------------------------------------------
 Proc V_Options(), Byte
-    Dim B_Sel As Byte
-    Dim B_Cnt As Byte
-    B_Cnt = 3
+    Dim B_Sel        As Byte
+    Dim B_Count      As Byte
+    Dim B_Top        As Byte
+    Dim B_Row        As Byte
+    Dim B_ListIndex  As Byte
+    Dim B_Active     As Byte
+
+    B_Count = 4                      ' 0 Main, 1 Setup, 2 Utility, 3 Back
     B_Sel = 0
+    B_Top = 0
     b_ReInitLCD = 0
     Set b_ScrDirty
+
     While 1 = 1
         If b_ScrDirty = 1 Then
-            P_Beeps(1)
+            P_Beeps(1)               ' short click on redraw (keep per your rule)
+
             P_DrawTitle("OPTIONS             ")
             P_ClearLine(2)
             P_ClearLine(3)
             P_ClearLine(4)
 
-            If B_Sel = 0 Then
-                P_PrintRow(2,"Main Menu",1)
+            B_Top = B_Sel
+            If B_Count > 3 Then
+                If B_Top > B_Count - 3 Then
+                    B_Top = B_Count - 3
+                EndIf
             Else
-                P_PrintRow(2,"Main Menu",0)
+                B_Top = 0
             EndIf
-            If B_Sel = 1 Then
-                P_PrintRow(3,"Setup Menu",1)
-            Else
-                P_PrintRow(3,"Setup Menu",0)
-            EndIf
-            If B_Sel = 2 Then
-                P_PrintRow(4,"Utility Menu",1)
-            Else
-                P_PrintRow(4,"Utility Menu",0)
-            EndIf
+
+            For B_Row = 2 To 4
+                B_ListIndex = B_Top + (B_Row - 2)
+
+                If B_ListIndex = B_Sel Then
+                    B_Active = 1
+                Else
+                    B_Active = 0
+                EndIf
+
+                If B_ListIndex = 0 Then
+                    P_PrintRow(B_Row, "Main Menu", B_Active)
+                Else
+                    If B_ListIndex = 1 Then
+                        P_PrintRow(B_Row, "Setup Menu", B_Active)
+                    Else
+                        If B_ListIndex = 2 Then
+                            P_PrintRow(B_Row, "Utility Menu", B_Active)
+                        Else
+                            P_PrintRow(B_Row, "Back", B_Active)
+                        EndIf
+                    EndIf
+                EndIf
+            Next B_Row
 
             b_ScrDirty = 0
         EndIf
 
         P_ReadEncoder()
         If B_EncDelta = 1 Then
-            If B_Sel < (B_Cnt - 1) Then
+            If B_Sel < B_Count - 1 Then
                 Inc B_Sel
                 Set b_ScrDirty
             EndIf
@@ -1462,38 +1481,38 @@ Proc V_Options(), Byte
         Select P_GetKeyEvent()
             Case 1
                 P_Beeps(2)
-                Select B_Sel
-                    Case 0
-                        Result = 1
-                        GoTo Exit_V_Options
-                    Case 1
+                If B_Sel = 0 Then
+                    Result = 1                      ' Main Menu -> return to previous screen
+                    GoTo Exit_V_Options
+                Else
+                    If B_Sel = 1 Then
                         If V_SetupMenu() = 0 Then
-                            If B_NavCode = 2 Then
-                                Result = 0
-                                GoTo Exit_V_Options
-                            EndIf
+                            ' no special handling required
                         EndIf
-                    Case 2
-                        V_NotImpl("UTILITY")
-                EndSelect
-                Set b_ScrDirty
-            Case 2
-                P_Beeps(3)
-                Result = 1
-                GoTo Exit_V_Options
-            Case 3
-                P_Beeps(3)
-                Result = 0
-                GoTo Exit_V_Options
+                        Set b_ScrDirty
+                    Else
+                        If B_Sel = 2 Then
+                            V_NotImpl("UTILITY")
+                            Set b_ScrDirty
+                        Else
+                            Result = 1              ' Back -> return to previous screen
+                            GoTo Exit_V_Options
+                        EndIf
+                    EndIf
+                EndIf
         EndSelect
 
-'        If P_UserAborted() <> 0 Then
-'            Result = 0
-'            GoTo Exit_V_Options
-'        EndIf
+        ' Menu timeout -> return to previous screen
+        If P_UserAborted() <> 0 Then
+            Result = 1
+            GoTo Exit_V_Options
+        EndIf
     Wend
+
 Exit_V_Options:
 EndProc
+
+
 '--------------------------------------------------------
 Proc V_SetupMenu(), Byte
     Dim B_Sel As Byte
@@ -1504,17 +1523,16 @@ Proc V_SetupMenu(), Byte
     Dim B_Act As Byte
     Dim B_Idx As Byte
 
-    B_Cnt = 4
+    B_Cnt = 5                             ' Input1, Input2, Input3, Clock, Back
     B_Sel = 0
     B_Top = 0
     b_ReInitLCD = 0
     Set b_ScrDirty
 
-
     While 1 = 1
         If b_ScrDirty = 1 Then
-            ' Compute window top so selection appears on line 2 when possible
             P_Beeps(1)
+            ' Window top so selection is visible on lines 2..4
             B_Top = B_Sel
             If B_Cnt > 3 Then
                 If B_Top > (B_Cnt - 3) Then
@@ -1548,7 +1566,11 @@ Proc V_SetupMenu(), Byte
                             If B_Idx = 2 Then
                                 P_PrintRow(B_Row, "Input 3", B_Act)
                             Else
-                                P_PrintRow(B_Row, "Clock",   B_Act)
+                                If B_Idx = 3 Then
+                                    P_PrintRow(B_Row, "Clock", B_Act)
+                                Else
+                                    P_PrintRow(B_Row, "Back", B_Act)
+                                EndIf
                             EndIf
                         EndIf
                     EndIf
@@ -1560,7 +1582,6 @@ Proc V_SetupMenu(), Byte
             b_ScrDirty = 0
         EndIf
 
-        ' ---- Input handling ----
         P_ReadEncoder()
         If B_EncDelta = 1 Then
             If B_Sel < (B_Cnt - 1) Then
@@ -1582,72 +1603,59 @@ Proc V_SetupMenu(), Byte
                 P_Beeps(2)
                 If B_Sel = 0 Then
                     If V_Input1Menu() = 0 Then
-                        If B_NavCode = 2 Then
-                            Result = 0
-                            GoTo Exit_V_SetupMenu
-                        EndIf
                     EndIf
                 Else
                     If B_Sel = 1 Then
                         V_NotImpl("INPUT 2")
-                        If B_NavCode = 2 Then
-                            Result = 0
-                            GoTo Exit_V_SetupMenu
-                        EndIf
                     Else
                         If B_Sel = 2 Then
                             V_NotImpl("INPUT 3")
-                            If B_NavCode = 2 Then
-                                Result = 0
-                                GoTo Exit_V_SetupMenu
-                            EndIf
                         Else
-                            If V_ClockMenu() = 0 Then
-                                If B_NavCode = 2 Then
-                                    Result = 0
-                                    GoTo Exit_V_SetupMenu
+                            If B_Sel = 3 Then
+                                If V_ClockMenu() = 0 Then
                                 EndIf
+                            Else
+                                ' Back -> return to Options
+                                Result = 1
+                                GoTo Exit_V_SetupMenu
                             EndIf
                         EndIf
                     EndIf
                 EndIf
                 Set b_ScrDirty
-
-            Case 2
-                P_Beeps(3)
-                Result = 1
-                GoTo Exit_V_SetupMenu
-
-            Case 3
-                P_Beeps(3)
-                B_NavCode = 2
-                Result = 0
-                GoTo Exit_V_SetupMenu
         EndSelect
-    Wend
 
+        If P_UserAborted() <> 0 Then
+            Result = 1                     ' timeout -> back to Options
+            GoTo Exit_V_SetupMenu
+        EndIf
+    Wend
 Exit_V_SetupMenu:
 EndProc
+
+
 '-------------------------------------------------------------
-
 Proc V_Input1Menu(), Byte
-    Dim B_Sel As Byte
-    Dim B_Top As Byte
-    Dim B_Cnt As Byte
-    Dim B_Act As Byte
+    Dim B_Sel      As Byte      ' selected index
+    Dim B_Top      As Byte      ' top index of 3-line window
+    Dim B_Cnt      As Byte      ' item count (fields + Back)
+    Dim B_Row      As Byte
+    Dim B_Idx      As Byte
+    Dim B_Active   As Byte
+    Dim B_EditMode As Byte      ' 0 = navigating, 1 = inline editing current item
 
-    B_Cnt = 11
+    B_Cnt = 12                  ' 11 fields (0..10) + Back (11)
     B_Sel = 0
     B_Top = 0
+    B_EditMode = 0
     Set b_ScrDirty
 
     While 1 = 1
         If b_ScrDirty = 1 Then
+            P_Beeps(1)                          ' short click on every redraw
             P_DrawTitle("INPUT 1             ")
-            P_ClearLine(2)
-            P_ClearLine(3)
-            P_ClearLine(4)
 
+            ' compute window
             If B_Sel <= 1 Then
                 B_Top = 0
             Else
@@ -1662,115 +1670,172 @@ Proc V_Input1Menu(), Byte
                 EndIf
             EndIf
 
-            B_Act = 0
-            If B_Sel = B_Top Then
-                B_Act = 1
-            EndIf
-            P_Input1RenderItem(2, B_Top, B_Act)
+            P_ClearLine(2)
+            P_ClearLine(3)
+            P_ClearLine(4)
 
-            B_Act = 0
-            If B_Sel = (B_Top + 1) Then
-                B_Act = 1
-            EndIf
-            P_Input1RenderItem(3, (B_Top + 1), B_Act)
+            For B_Row = 2 To 4
+                B_Idx = B_Top + (B_Row - 2)
+                If B_Idx < B_Cnt Then
+                    If B_Idx = B_Sel Then
+                        B_Active = 1
+                    Else
+                        B_Active = 0
+                    EndIf
 
-            B_Act = 0
-            If B_Sel = (B_Top + 2) Then
-                B_Act = 1
+                    ' render normal fields via existing renderer, "Back" as a plain row
+                    If B_Idx <= 10 Then
+                        P_Input1RenderItem(B_Row, B_Idx, B_Active)
+                    Else
+                        P_PrintRow(B_Row, "Back", B_Active)
+                    EndIf
+                Else
+                    P_ClearLine(B_Row)
+                EndIf
+            Next B_Row
+
+            b_ScrDirty = 0
+        EndIf
+
+        ' encoder
+        P_ReadEncoder()
+        If B_EditMode = 0 Then
+            If B_EncDelta = 1 Then
+                If B_Sel < (B_Cnt - 1) Then
+                    Inc B_Sel
+                    Set b_ScrDirty
+                EndIf
+            Else
+                If B_EncDelta = -1 Then
+                    If B_Sel > 0 Then
+                        Dec B_Sel
+                        Set b_ScrDirty
+                    EndIf
+                EndIf
             EndIf
-            P_Input1RenderItem(4, (B_Top + 2), B_Act)
+        Else
+            ' inline edit for item 0 (Enable/Disable)
+            If B_Sel = 0 Then
+                If B_EncDelta <> 0 Then
+                    If B_I1_Enabled = 0 Then
+                        B_I1_Enabled = 1
+                    Else
+                        B_I1_Enabled = 0
+                    EndIf
+                    P_Beeps(1)
+                    Set b_ScrDirty
+                EndIf
+            EndIf
+        EndIf
+
+        ' button (short press)
+        P_ReadButton()
+        Select P_GetKeyEvent()
+            Case 1
+                If B_EditMode = 0 Then
+                    ' enter inline edit for supported items, or act on Back
+                    If B_Sel = 0 Then
+                        B_EditMode = 1
+                        Set b_ScrDirty
+                    Else
+                        If B_Sel = 11 Then
+                            P_Beeps(2)
+                            Result = 1         ' return to previous screen
+                            GoTo Exit_V_Input1Menu
+                        Else
+                            ' other items: leave for subsequent tasks
+                            P_Beeps(2)
+                        EndIf
+                    EndIf
+                Else
+                    ' commit and exit inline edit
+                    If B_Sel = 0 Then
+                        P_SaveSettings()
+                    EndIf
+                    B_EditMode = 0
+                    Set b_ScrDirty
+                EndIf
+        EndSelect
+    Wend
+
+Exit_V_Input1Menu:
+EndProc
+'--------------------------------------------------------------
+Proc V_ClockMenu(), Byte
+    Dim B_Sel           As Byte
+    Dim B_Count         As Byte
+    Dim B_Active        As Byte
+
+    Dim B_EditMode      As Byte
+    Dim B_EditIndex     As Byte
+    Dim W_EditWordOrig  As Word
+
+    B_Count     = 3                      ' Timeout, Pulse, Back
+    B_Sel       = 0
+    B_EditMode  = 0
+    B_EditIndex = 255
+    Set b_ScrDirty
+
+    While 1 = 1
+        If b_ScrDirty = 1 Then
+            ' STYLE: play short click on redraw (user keeps local P_Beeps(1) here)
+            ' P_Beeps(1)
+
+            P_DrawTitle("CLOCK               ")
+            P_ClearLine(2) : P_ClearLine(3) : P_ClearLine(4)
+
+            If B_Sel = 0 Then
+                B_Active = 1
+            Else
+                B_Active = 0
+            EndIf
+            Print At 2,1,"Timeout   "
+            P_PrintValMMSS(2, 11, W_UI_TimeoutS, B_Active)
+
+            If B_Sel = 1 Then
+                B_Active = 1
+            Else
+                B_Active = 0
+            EndIf
+            Print At 3,1,"Pulse     "
+            P_PrintValWord(3, 11, W_UI_PulseMs, B_Active)
+
+            If B_Sel = 2 Then
+                P_PrintRow(4,"Back",1)
+            Else
+                P_PrintRow(4,"Back",0)
+            EndIf
 
             b_ScrDirty = 0
         EndIf
 
         P_ReadEncoder()
         If B_EncDelta <> 0 Then
-            If B_EncDelta = 1 Then
-                If B_Sel < (B_Cnt - 1) Then
-                    B_Sel = B_Sel + 1
+            If B_EditMode = 0 Then
+                If B_EncDelta = 1 Then
+                    If B_Sel < (B_Count - 1) Then Inc B_Sel : Set b_ScrDirty
+                Else
+                    If B_Sel > 0 Then Dec B_Sel : Set b_ScrDirty
                 EndIf
             Else
-                If B_EncDelta = -1 Then
-                    If B_Sel > 0 Then
-                        B_Sel = B_Sel - 1
-                    EndIf
-                EndIf
-            EndIf
-            Set b_ScrDirty
-        EndIf
+                ' Edit values in place
+                Select B_EditIndex
+                    Case 0                  ' Timeout seconds
+                        If B_EncDelta = 1 Then
+                            If W_UI_TimeoutS < UI_TIMEOUT_S_MAX Then Inc W_UI_TimeoutS
+                        Else
+                            If W_UI_TimeoutS > UI_TIMEOUT_S_MIN Then Dec W_UI_TimeoutS
+                        EndIf
+                        Set b_ScrDirty
 
-        P_ReadButton()
-        Select P_GetKeyEvent()
-            Case 1
-                P_Beeps(2)
-                P_Input1EditItem(B_Sel)
-                Set b_ScrDirty
-            Case 2
-                P_Beeps(3)
-                Result = 1
-                GoTo Exit_V_Input1Menu
-            Case 3
-                P_Beeps(3)
-                B_NavCode = 2
-                Result = 0
-                GoTo Exit_V_Input1Menu
-        EndSelect
-
-'        If P_UserAborted() <> 0 Then
-'            Result = 0
-'            GoTo Exit_V_Input1Menu
-'        EndIf
-    Wend
-Exit_V_Input1Menu:
-EndProc
-
-Proc V_ClockMenu(), Byte
-    Dim B_Sel As Byte
-    Dim B_Cnt As Byte
-    Dim B_Act As Byte
-
-    B_Cnt = 2
-    B_Sel = 0
-    Set b_ScrDirty
-
-    While 1 = 1
-        If b_ScrDirty = 1 Then
-            P_DrawTitle("CLOCK               ")
-            P_ClearLine(2)
-            P_ClearLine(3)
-            P_ClearLine(4)
-
-            If B_Sel = 0 Then
-                B_Act = 1
-            Else
-                B_Act = 0
-            EndIf
-            Print At 2,1,"Timeout   "
-            P_PrintValMMSS(2, 11, W_UI_TimeoutS, B_Act)
-
-            If B_Sel = 1 Then
-                B_Act = 1
-            Else
-                B_Act = 0
-            EndIf
-            Print At 3,1,"Pulse     "
-            P_PrintValWord(3, 11, W_UI_PulseMs, B_Act)
-
-            b_ScrDirty = 0
-        EndIf
-
-        P_ReadEncoder()
-        If B_EncDelta = 1 Then
-            If B_Sel < (B_Cnt - 1) Then
-                Inc B_Sel
-                Set b_ScrDirty
-            EndIf
-        Else
-            If B_EncDelta = -1 Then
-                If B_Sel > 0 Then
-                    Dec B_Sel
-                    Set b_ScrDirty
-                EndIf
+                    Case 1                  ' Pulse ms
+                        If B_EncDelta = 1 Then
+                            If W_UI_PulseMs < UI_PULSE_MS_MAX Then Inc W_UI_PulseMs
+                        Else
+                            If W_UI_PulseMs > UI_PULSE_MS_MIN Then Dec W_UI_PulseMs
+                        EndIf
+                        Set b_ScrDirty
+                EndSelect
             EndIf
         EndIf
 
@@ -1778,35 +1843,54 @@ Proc V_ClockMenu(), Byte
         Select P_GetKeyEvent()
             Case 1
                 P_Beeps(2)
-                If B_Sel = 0 Then
-                    If P_EditMMSS(W_UI_TimeoutS) = 1 Then
-                        P_ClampW(W_UI_TimeoutS, UI_TIMEOUT_S_MIN, UI_TIMEOUT_S_MAX)
-                        P_SaveSystem()
+                If B_EditMode = 0 Then
+                    If B_Sel = 2 Then
+                        Result = 1                  ' Back to Setup
+                        GoTo Exit_V_Clock
+                    Else
+                        ' Enter edit mode, snapshot original
+                        B_EditMode  = 1
+                        B_EditIndex = B_Sel
+                        If B_Sel = 0 Then
+                            W_EditWordOrig = W_UI_TimeoutS
+                        Else
+                            W_EditWordOrig = W_UI_PulseMs
+                        EndIf
                     EndIf
                 Else
-                    If P_EditWordVal(W_UI_PulseMs, UI_PULSE_MS_MIN, UI_PULSE_MS_MAX, 5) = 1 Then
-                        P_SaveSystem()
+                    ' Confirm, clamp & save
+                    If B_EditIndex = 0 Then
+                        P_ClampW(W_UI_TimeoutS, UI_TIMEOUT_S_MIN, UI_TIMEOUT_S_MAX)
+                    Else
+                        P_ClampW(W_UI_PulseMs, UI_PULSE_MS_MIN, UI_PULSE_MS_MAX)
                     EndIf
+                    P_SaveSystem()
+                    B_EditMode  = 0
+                    B_EditIndex = 255
                 EndIf
-                Set b_ScrDirty
-            Case 2
-                P_Beeps(3)
-                Result = 1
-                GoTo Exit_V_Clock
-            Case 3
-                P_Beeps(3)
-                B_NavCode = 2
-                Result = 0
-                GoTo Exit_V_Clock
         EndSelect
 
-'        If P_UserAborted() <> 0 Then
-'            Result = 0
-'            GoTo Exit_V_Clock
-'        EndIf
+        If P_UserAborted() <> 0 Then
+            If B_EditMode = 1 Then
+                ' Revert on timeout
+                If B_EditIndex = 0 Then
+                    W_UI_TimeoutS = W_EditWordOrig
+                Else
+                    W_UI_PulseMs = W_EditWordOrig
+                EndIf
+                B_EditMode  = 0
+                B_EditIndex = 255
+                Set b_ScrDirty
+            Else
+                Result = 1                      ' timeout -> back to Setup
+                GoTo Exit_V_Clock
+            EndIf
+        EndIf
     Wend
 Exit_V_Clock:
 EndProc
+
+
 
 '---------- LCD safe init ----------
 Proc P_LCDSafeInit()
