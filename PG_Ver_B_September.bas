@@ -174,6 +174,26 @@ Dim B_EncDelta   As SByte
 Dim B_KeyEvent   As Byte
 Dim W_Beep       As Word
 
+'----- Extra item IDs for Input1 dynamic menu -----
+Symbol I1_ITEM_BACK    = 200
+Symbol I1_ITEM_LOWBP   = 11      ' Temp / Flow "Low" BP
+Symbol I1_ITEM_RLYLOW  = 12
+Symbol I1_ITEM_TYPE    = 13      ' Flow: Analog/Digital
+Symbol I1_ITEM_UNITS   = 14      ' Flow: %, LpS
+
+'----- Flow sub-options -----
+Symbol FLOWTYPE_ANALOG = 0
+Symbol FLOWTYPE_DIGITAL= 1
+Symbol FLOWU_PERCENT   = 0
+Symbol FLOWU_LPS       = 1
+
+'----- Input1 extra mirrors (temp/flow specifics; EEPROM wiring later) -----
+Dim W_I1_BP_Low    As Word
+Dim B_I1_RlyLow    As Byte
+Dim B_I1_FlowType  As Byte      ' 0=Analog, 1=Digital
+Dim B_I1_FlowUnits As Byte      ' 0=%, 1=LpS
+
+
 ' Debounce/encoder internals
 Dim B_RE_Count     As Byte
 Dim B_AState       As Byte
@@ -1404,126 +1424,14 @@ Exit_V_Main:
 EndProc
 '--------------------------------------------------------
 Proc V_Options(), Byte
-    Dim B_Sel        As Byte
-    Dim B_Count      As Byte
-    Dim B_Top        As Byte
-    Dim B_Row        As Byte
-    Dim B_ListIndex  As Byte
-    Dim B_Active     As Byte
+    Dim B_Sel  As Byte
+    Dim B_Top  As Byte
+    Dim B_Cnt  As Byte
+    Dim B_Act  As Byte
+    Dim B_Row  As Byte
+    Dim B_Idx  As Byte
 
-    B_Count = 4                      ' 0 Main, 1 Setup, 2 Utility, 3 Back
-    B_Sel = 0
-    B_Top = 0
-    b_ReInitLCD = 0
-    Set b_ScrDirty
-
-    While 1 = 1
-        If b_ScrDirty = 1 Then
-            P_Beeps(1)               ' short click on redraw (keep per your rule)
-
-            P_DrawTitle("OPTIONS             ")
-            P_ClearLine(2)
-            P_ClearLine(3)
-            P_ClearLine(4)
-
-            B_Top = B_Sel
-            If B_Count > 3 Then
-                If B_Top > B_Count - 3 Then
-                    B_Top = B_Count - 3
-                EndIf
-            Else
-                B_Top = 0
-            EndIf
-
-            For B_Row = 2 To 4
-                B_ListIndex = B_Top + (B_Row - 2)
-
-                If B_ListIndex = B_Sel Then
-                    B_Active = 1
-                Else
-                    B_Active = 0
-                EndIf
-
-                If B_ListIndex = 0 Then
-                    P_PrintRow(B_Row, "Main Menu", B_Active)
-                Else
-                    If B_ListIndex = 1 Then
-                        P_PrintRow(B_Row, "Setup Menu", B_Active)
-                    Else
-                        If B_ListIndex = 2 Then
-                            P_PrintRow(B_Row, "Utility Menu", B_Active)
-                        Else
-                            P_PrintRow(B_Row, "Back", B_Active)
-                        EndIf
-                    EndIf
-                EndIf
-            Next B_Row
-
-            b_ScrDirty = 0
-        EndIf
-
-        P_ReadEncoder()
-        If B_EncDelta = 1 Then
-            If B_Sel < B_Count - 1 Then
-                Inc B_Sel
-                Set b_ScrDirty
-            EndIf
-        Else
-            If B_EncDelta = -1 Then
-                If B_Sel > 0 Then
-                    Dec B_Sel
-                    Set b_ScrDirty
-                EndIf
-            EndIf
-        EndIf
-
-        P_ReadButton()
-        Select P_GetKeyEvent()
-            Case 1
-                P_Beeps(2)
-                If B_Sel = 0 Then
-                    Result = 1                      ' Main Menu -> return to previous screen
-                    GoTo Exit_V_Options
-                Else
-                    If B_Sel = 1 Then
-                        If V_SetupMenu() = 0 Then
-                            ' no special handling required
-                        EndIf
-                        Set b_ScrDirty
-                    Else
-                        If B_Sel = 2 Then
-                            V_NotImpl("UTILITY")
-                            Set b_ScrDirty
-                        Else
-                            Result = 1              ' Back -> return to previous screen
-                            GoTo Exit_V_Options
-                        EndIf
-                    EndIf
-                EndIf
-        EndSelect
-
-        ' Menu timeout -> return to previous screen
-        If P_UserAborted() <> 0 Then
-            Result = 1
-            GoTo Exit_V_Options
-        EndIf
-    Wend
-
-Exit_V_Options:
-EndProc
-
-
-'--------------------------------------------------------
-Proc V_SetupMenu(), Byte
-    Dim B_Sel As Byte
-    Dim B_Cnt As Byte
-    Dim B_Top As Byte
-    Dim B_I As Byte
-    Dim B_Row As Byte
-    Dim B_Act As Byte
-    Dim B_Idx As Byte
-
-    B_Cnt = 5                             ' Input1, Input2, Input3, Clock, Back
+    B_Cnt = 4                      ' Main, Setup, Utility, Back
     B_Sel = 0
     B_Top = 0
     b_ReInitLCD = 0
@@ -1532,130 +1440,121 @@ Proc V_SetupMenu(), Byte
     While 1 = 1
         If b_ScrDirty = 1 Then
             P_Beeps(1)
-            ' Window top so selection is visible on lines 2..4
-            B_Top = B_Sel
-            If B_Cnt > 3 Then
-                If B_Top > (B_Cnt - 3) Then
-                    B_Top = B_Cnt - 3
-                EndIf
-            Else
-                B_Top = 0
-            EndIf
-
-            P_DrawTitle("SETUP               ")
+            P_DrawTitle("OPTIONS             ")
             P_ClearLine(2)
             P_ClearLine(3)
             P_ClearLine(4)
 
-            For B_I = 0 To 2
-                B_Row = 2 + B_I
-                B_Idx = B_Top + B_I
-                If B_Idx < B_Cnt Then
-                    If B_Idx = B_Sel Then
-                        B_Act = 1
+            ' Windowing identical to V_Input1Menu()
+            If B_Sel <= 1 Then
+                B_Top = 0
+            Else
+                If B_Sel >= B_Cnt - 1 Then
+                    If B_Cnt > 2 Then
+                        B_Top = B_Cnt - 3
                     Else
-                        B_Act = 0
-                    EndIf
-
-                    If B_Idx = 0 Then
-                        P_PrintRow(B_Row, "Input 1", B_Act)
-                    Else
-                        If B_Idx = 1 Then
-                            P_PrintRow(B_Row, "Input 2", B_Act)
-                        Else
-                            If B_Idx = 2 Then
-                                P_PrintRow(B_Row, "Input 3", B_Act)
-                            Else
-                                If B_Idx = 3 Then
-                                    P_PrintRow(B_Row, "Clock", B_Act)
-                                Else
-                                    P_PrintRow(B_Row, "Back", B_Act)
-                                EndIf
-                            EndIf
-                        EndIf
+                        B_Top = 0
                     EndIf
                 Else
-                    P_ClearLine(B_Row)
+                    B_Top = B_Sel - 1
                 EndIf
-            Next B_I
+            EndIf
+
+            ' Render the 3 visible rows
+            For B_Row = 2 To 4
+                B_Idx = B_Top + B_Row - 2
+                If B_Idx = B_Sel Then
+                    B_Act = 1
+                Else
+                    B_Act = 0
+                EndIf
+
+                Select B_Idx
+                    Case 0
+                        P_PrintRow(B_Row, "Main Menu",   B_Act)
+                    Case 1
+                        P_PrintRow(B_Row, "Setup Menu",  B_Act)
+                    Case 2
+                        P_PrintRow(B_Row, "Utility Menu",B_Act)
+                    Case 3
+                        P_PrintRow(B_Row, "Back",        B_Act)
+                    Case Else
+                        P_ClearLine(B_Row)
+                EndSelect
+            Next B_Row
 
             b_ScrDirty = 0
         EndIf
 
+        ' Encoder: CW moves down, CCW moves up
         P_ReadEncoder()
-        If B_EncDelta = 1 Then
-            If B_Sel < (B_Cnt - 1) Then
-                Inc B_Sel
-                Set b_ScrDirty
-            EndIf
-        Else
-            If B_EncDelta = -1 Then
+        If B_EncDelta <> 0 Then
+            If B_EncDelta = 1 Then
+                If B_Sel < B_Cnt - 1 Then
+                    B_Sel = B_Sel + 1
+                EndIf
+            Else
                 If B_Sel > 0 Then
-                    Dec B_Sel
-                    Set b_ScrDirty
+                    B_Sel = B_Sel - 1
                 EndIf
             EndIf
+            Set b_ScrDirty
         EndIf
 
+        ' Button: select item
         P_ReadButton()
         Select P_GetKeyEvent()
             Case 1
                 P_Beeps(2)
                 If B_Sel = 0 Then
-                    If V_Input1Menu() = 0 Then
-                    EndIf
+                    ' Main Menu -> return to previous screen
+                    Result = 1
+                    GoTo Exit_V_Options
                 Else
                     If B_Sel = 1 Then
-                        V_NotImpl("INPUT 2")
+                        Call V_SetupMenu()
                     Else
                         If B_Sel = 2 Then
-                            V_NotImpl("INPUT 3")
+                            V_NotImpl("UTILITY")
                         Else
-                            If B_Sel = 3 Then
-                                If V_ClockMenu() = 0 Then
-                                EndIf
-                            Else
-                                ' Back -> return to Options
-                                Result = 1
-                                GoTo Exit_V_SetupMenu
-                            EndIf
+                            ' Back -> return to previous screen
+                            Result = 1
+                            GoTo Exit_V_Options
                         EndIf
                     EndIf
                 EndIf
                 Set b_ScrDirty
         EndSelect
-
-        If P_UserAborted() <> 0 Then
-            Result = 1                     ' timeout -> back to Options
-            GoTo Exit_V_SetupMenu
-        EndIf
     Wend
-Exit_V_SetupMenu:
+
+Exit_V_Options:
 EndProc
 
 
-'-------------------------------------------------------------
-Proc V_Input1Menu(), Byte
-    Dim B_Sel      As Byte      ' selected index
-    Dim B_Top      As Byte      ' top index of 3-line window
-    Dim B_Cnt      As Byte      ' item count (fields + Back)
-    Dim B_Row      As Byte
-    Dim B_Idx      As Byte
-    Dim B_Active   As Byte
-    Dim B_EditMode As Byte      ' 0 = navigating, 1 = inline editing current item
+'--------------------------------------------------------
+Proc V_SetupMenu(), Byte
+    Dim B_Sel  As Byte
+    Dim B_Top  As Byte
+    Dim B_Cnt  As Byte
+    Dim B_Act  As Byte
+    Dim B_Row  As Byte
+    Dim B_Idx  As Byte
 
-    B_Cnt = 12                  ' 11 fields (0..10) + Back (11)
+    B_Cnt = 5                      ' Input1, Input2, Input3, Clock, Back
     B_Sel = 0
     B_Top = 0
-    B_EditMode = 0
+    b_ReInitLCD = 0
     Set b_ScrDirty
 
     While 1 = 1
         If b_ScrDirty = 1 Then
-            P_Beeps(1)                          ' short click on every redraw
-            P_DrawTitle("INPUT 1             ")
+            P_Beeps(1)
+            P_DrawTitle("SETUP               ")
+            P_ClearLine(2)
+            P_ClearLine(3)
+            P_ClearLine(4)
 
-            ' compute window
+            ' Windowing identical to V_Input1Menu()
             If B_Sel <= 1 Then
                 B_Top = 0
             Else
@@ -1670,96 +1569,508 @@ Proc V_Input1Menu(), Byte
                 EndIf
             EndIf
 
+            ' Render three visible rows
+            For B_Row = 2 To 4
+                B_Idx = B_Top + (B_Row - 2)
+                If B_Idx = B_Sel Then
+                    B_Act = 1
+                Else
+                    B_Act = 0
+                EndIf
+
+                Select B_Idx
+                    Case 0
+                        P_PrintRow(B_Row, "Input 1", B_Act)
+                    Case 1
+                        P_PrintRow(B_Row, "Input 2", B_Act)
+                    Case 2
+                        P_PrintRow(B_Row, "Input 3", B_Act)
+                    Case 3
+                        P_PrintRow(B_Row, "Clock",   B_Act)
+                    Case 4
+                        P_PrintRow(B_Row, "Back",    B_Act)
+                    Case Else
+                        P_ClearLine(B_Row)
+                EndSelect
+            Next B_Row
+
+            b_ScrDirty = 0
+        EndIf
+
+        ' Encoder: clockwise moves selection down, counter-clockwise up
+        P_ReadEncoder()
+        If B_EncDelta <> 0 Then
+            If B_EncDelta = 1 Then
+                If B_Sel < (B_Cnt - 1) Then
+                    B_Sel = B_Sel + 1
+                EndIf
+            Else
+                If B_Sel > 0 Then
+                    B_Sel = B_Sel - 1
+                EndIf
+            EndIf
+            Set b_ScrDirty
+        EndIf
+
+        ' Button: open sub-menus or go back
+        P_ReadButton()
+        Select P_GetKeyEvent()
+            Case 1
+                P_Beeps(2)
+                If B_Sel = 0 Then
+                    Call V_Input1Menu()
+                Else
+                    If B_Sel = 1 Then
+                        V_NotImpl("INPUT 2")
+                    Else
+                        If B_Sel = 2 Then
+                            V_NotImpl("INPUT 3")
+                        Else
+                            If B_Sel = 3 Then
+                                Call V_ClockMenu()
+                            Else
+                                ' Back -> return to previous screen
+                                Result = 1
+                                GoTo Exit_V_SetupMenu
+                            EndIf
+                        EndIf
+                    EndIf
+                EndIf
+                Set b_ScrDirty
+        EndSelect
+    Wend
+
+Exit_V_SetupMenu:
+EndProc
+
+'-------------------------------------------------------------
+
+' Helper: map relay mode byte to text
+' 0=No, 1=Pulse, 2=Latch
+Proc Local_P_RlyTxt(B_Val As Byte), String
+    If B_Val = 0 Then
+        Result = "No"
+    Else
+        If B_Val = 1 Then
+            Result = "Pulse"
+        Else
+            Result = "Latch"
+        EndIf
+    EndIf
+EndProc
+'-------------------------------------------------------------
+'=================== INPUT 1: dynamic list helpers ===================
+
+' How many visible rows for Input 1 right now
+Proc P_I1_ViewCount(), Byte
+    Dim B_Count As Byte
+    If B_I1_Enabled = 0 Then
+        B_Count = 2                          ' Enable, Back
+        Result = B_Count
+        GoTo Exit_P_VCount
+    EndIf
+
+    ' Enabled path: base items
+    B_Count = 1                              ' Enable
+    B_Count = B_Count + 1                    ' Sensor
+
+    If B_I1_SensorT = SENSOR_FLOW Then
+        B_Count = B_Count + 1                ' Type
+        If B_I1_FlowType = FLOWTYPE_ANALOG Then
+            B_Count = B_Count + 1            ' Units
+            B_Count = B_Count + 2            ' Scale4, Scale20
+        EndIf
+        B_Count = B_Count + 1                ' Low Flow BP (Low BP)
+        B_Count = B_Count + 1                ' Rly Low
+        B_Count = B_Count + 1                ' Display
+        B_Count = B_Count + 1                ' Back
+        Result = B_Count
+        GoTo Exit_P_VCount
+    EndIf
+
+    ' Not FLOW: add scales
+    B_Count = B_Count + 2                    ' Scale4, Scale20
+
+    If B_I1_SensorT = SENSOR_PRES Then
+        B_Count = B_Count + 3                ' HighBP, PLPBP, SLPBP
+        B_Count = B_Count + 3                ' RlyHigh, RlyPLP, RlySLP
+        B_Count = B_Count + 1                ' Display
+        B_Count = B_Count + 1                ' Back
+        Result = B_Count
+        GoTo Exit_P_VCount
+    EndIf
+
+    ' SENSOR_TEMP
+    B_Count = B_Count + 1                    ' High BP
+    B_Count = B_Count + 1                    ' Low BP
+    B_Count = B_Count + 1                    ' Rly High
+    B_Count = B_Count + 1                    ' Rly Low
+    B_Count = B_Count + 1                    ' Display
+    B_Count = B_Count + 1                    ' Back
+    Result = B_Count
+Exit_P_VCount: 
+EndProc
+'-------------------------------------------------------------
+
+' Map a visible index (0..N-1) to item ID (legacy 0..10 or new extras)
+Proc P_I1_MapViewToIdx(B_View As Byte), Byte
+    Dim B_Pos As Byte
+
+    ' 0: Enable
+    B_Pos = 0
+    If B_View = B_Pos Then
+        Result = 0
+        GoTo Exit_MapView
+    EndIf
+
+    If B_I1_Enabled = 0 Then
+        Inc B_Pos                              ' Back
+        If B_View = B_Pos Then
+            Result = I1_ITEM_BACK
+            GoTo Exit_MapView
+        EndIf
+        Result = I1_ITEM_BACK
+        GoTo Exit_MapView
+    EndIf
+
+    ' Enabled path
+    Inc B_Pos                                  ' Sensor (1)
+    If B_View = B_Pos Then
+        Result = 1
+        GoTo Exit_MapView
+    EndIf
+
+    If B_I1_SensorT = SENSOR_FLOW Then
+        Inc B_Pos                              ' Type
+        If B_View = B_Pos Then
+            Result = I1_ITEM_TYPE
+            GoTo Exit_MapView
+        EndIf
+
+        If B_I1_FlowType = FLOWTYPE_ANALOG Then
+            Inc B_Pos                          ' Units
+            If B_View = B_Pos Then
+                Result = I1_ITEM_UNITS
+                GoTo Exit_MapView
+            EndIf
+
+            Inc B_Pos                          ' Scale4ma (2)
+            If B_View = B_Pos Then
+                Result = 2
+                GoTo Exit_MapView
+            EndIf
+
+            Inc B_Pos                          ' Scale20ma (3)
+            If B_View = B_Pos Then
+                Result = 3
+                GoTo Exit_MapView
+            EndIf
+        EndIf
+
+        Inc B_Pos                              ' Low Flow BP
+        If B_View = B_Pos Then
+            Result = I1_ITEM_LOWBP
+            GoTo Exit_MapView
+        EndIf
+
+        Inc B_Pos                              ' Rly Low
+        If B_View = B_Pos Then
+            Result = I1_ITEM_RLYLOW
+            GoTo Exit_MapView
+        EndIf
+
+        Inc B_Pos                              ' Display (10)
+        If B_View = B_Pos Then
+            Result = 10
+            GoTo Exit_MapView
+        EndIf
+
+        Inc B_Pos                              ' Back
+        If B_View = B_Pos Then
+            Result = I1_ITEM_BACK
+            GoTo Exit_MapView
+        EndIf
+
+        Result = I1_ITEM_BACK
+        GoTo Exit_MapView
+    EndIf
+
+    ' Not FLOW: common scales
+    Inc B_Pos                                  ' Scale4ma (2)
+    If B_View = B_Pos Then
+        Result = 2
+        GoTo Exit_MapView
+    EndIf
+
+    Inc B_Pos                                  ' Scale20ma (3)
+    If B_View = B_Pos Then
+        Result = 3
+        GoTo Exit_MapView
+    EndIf
+
+    If B_I1_SensorT = SENSOR_PRES Then
+        Inc B_Pos                              ' High BP (4)
+        If B_View = B_Pos Then
+            Result = 4
+            GoTo Exit_MapView
+        EndIf
+        Inc B_Pos                              ' PLPBP (5)
+        If B_View = B_Pos Then
+            Result = 5
+            GoTo Exit_MapView
+        EndIf
+        Inc B_Pos                              ' SLPBP (6)
+        If B_View = B_Pos Then
+            Result = 6
+            GoTo Exit_MapView
+        EndIf
+        Inc B_Pos                              ' Rly High (7)
+        If B_View = B_Pos Then
+            Result = 7
+            GoTo Exit_MapView
+        EndIf
+        Inc B_Pos                              ' Rly PLP (8)
+        If B_View = B_Pos Then
+            Result = 8
+            GoTo Exit_MapView
+        EndIf
+        Inc B_Pos                              ' Rly SLP (9)
+        If B_View = B_Pos Then
+            Result = 9
+            GoTo Exit_MapView
+        EndIf
+    Else
+        ' SENSOR_TEMP
+        Inc B_Pos                              ' High BP (reuse 4)
+        If B_View = B_Pos Then
+            Result = 4
+            GoTo Exit_MapView
+        EndIf
+        Inc B_Pos                              ' Low BP
+        If B_View = B_Pos Then
+            Result = I1_ITEM_LOWBP
+            GoTo Exit_MapView
+        EndIf
+        Inc B_Pos                              ' Rly High (7)
+        If B_View = B_Pos Then
+            Result = 7
+            GoTo Exit_MapView
+        EndIf
+        Inc B_Pos                              ' Rly Low
+        If B_View = B_Pos Then
+            Result = I1_ITEM_RLYLOW
+            GoTo Exit_MapView
+        EndIf
+    EndIf
+
+    Inc B_Pos                                  ' Display (10)
+    If B_View = B_Pos Then
+        Result = 10
+        GoTo Exit_MapView
+    EndIf
+
+    Inc B_Pos                                  ' Back
+    If B_View = B_Pos Then
+        Result = I1_ITEM_BACK
+        GoTo Exit_MapView
+    EndIf
+
+    Result = I1_ITEM_BACK
+Exit_MapView:
+EndProc
+'-------------------------------------------------------------
+' Render one visible row (handles legacy + new items)
+Proc P_I1_RenderViewRow(B_Row As Byte, B_View As Byte, B_Active As Byte)
+    Dim B_Item As Byte
+    B_Item = P_I1_MapViewToIdx(B_View)
+
+    If B_Item = I1_ITEM_BACK Then
+        P_PrintRow(B_Row, "Back", B_Active)
+        GoTo EXIT_Render
+    EndIf
+
+    If B_Item <= 10 Then
+        P_Input1RenderItem(B_Row, B_Item, B_Active)
+        GoTo EXIT_Render
+    EndIf
+
+    ' New items
+    Select B_Item
+        Case I1_ITEM_LOWBP
+            If B_I1_SensorT = SENSOR_FLOW Then
+                Print At B_Row,1,"Low Flow BP"
+            Else
+                Print At B_Row,1,"Low BP    "
+            EndIf
+            P_PrintValMMSS(B_Row, 11, W_I1_BP_Low, B_Active)
+
+        Case I1_ITEM_RLYLOW
+            Print At B_Row,1,"Rly Low   "
+            If B_I1_RlyLow = MODE_LATCH Then
+                P_PrintValText(B_Row, 11, "Latch", B_Active, 1)
+            Else
+                If B_I1_RlyLow = MODE_PULSE Then
+                    P_PrintValText(B_Row, 11, "Pulse", B_Active, 1)
+                Else
+                    P_PrintValText(B_Row, 11, "No",    B_Active, 1)
+                EndIf
+            EndIf
+
+        Case I1_ITEM_TYPE
+            Print At B_Row,1,"Type      "
+            If B_I1_FlowType = FLOWTYPE_ANALOG Then
+                P_PrintValText(B_Row, 11, "Analog", B_Active, 1)
+            Else
+                P_PrintValText(B_Row, 11, "Digital", B_Active, 1)
+            EndIf
+
+        Case I1_ITEM_UNITS
+            Print At B_Row,1,"Units     "
+            If B_I1_FlowUnits = FLOWU_PERCENT Then
+                P_PrintValText(B_Row, 11, "%", B_Active, 1)
+            Else
+                P_PrintValText(B_Row, 11, "LpS", B_Active, 1)
+            EndIf
+    EndSelect
+EXIT_Render:
+EndProc
+'-------------------------------------------------------------
+Proc V_Input1Menu(), Byte
+    Dim B_Sel      As Byte
+    Dim B_Top      As Byte
+    Dim B_Cnt      As Byte
+    Dim B_Act      As Byte
+    Dim B_InEdit   As Byte
+    Dim B_EditVal  As Byte
+    Dim B_Row      As Byte
+    Dim B_Idx      As Byte
+    Dim B_BackIdx  As Byte
+
+    ' 0..10 = items rendered by P_Input1RenderItem
+    ' 11    = Back
+    B_Cnt = 12
+    B_BackIdx = B_Cnt - 1
+
+    B_Sel = 0
+    B_Top = 0
+    B_InEdit = 0
+    Set b_ScrDirty
+
+    While 1 = 1
+        If b_ScrDirty = 1 Then
+            P_Beeps(1)
+            P_DrawTitle("INPUT 1             ")
             P_ClearLine(2)
             P_ClearLine(3)
             P_ClearLine(4)
 
-            For B_Row = 2 To 4
-                B_Idx = B_Top + (B_Row - 2)
-                If B_Idx < B_Cnt Then
-                    If B_Idx = B_Sel Then
-                        B_Active = 1
+            ' Windowing identical to V_Input1Menu style you approved
+            If B_Sel <= 1 Then
+                B_Top = 0
+            Else
+                If B_Sel >= B_Cnt - 1 Then
+                    If B_Cnt > 2 Then
+                        B_Top = B_Cnt - 3
                     Else
-                        B_Active = 0
-                    EndIf
-
-                    ' render normal fields via existing renderer, "Back" as a plain row
-                    If B_Idx <= 10 Then
-                        P_Input1RenderItem(B_Row, B_Idx, B_Active)
-                    Else
-                        P_PrintRow(B_Row, "Back", B_Active)
+                        B_Top = 0
                     EndIf
                 Else
-                    P_ClearLine(B_Row)
+                    B_Top = B_Sel - 1
+                EndIf
+            EndIf
+
+            ' Render 3 visible rows
+            For B_Row = 2 To 4
+                B_Idx = B_Top + B_Row - 2
+                If B_Idx = B_Sel Then
+                    B_Act = 1
+                Else
+                    B_Act = 0
+                EndIf
+
+                If B_Idx = B_BackIdx Then
+                    P_PrintRow(B_Row, "Back", B_Act)
+                Else
+                    ' Inline edit for Enable (index 0) when focused
+                    If B_Idx = 0 And B_InEdit = 1 Then
+                        Print At B_Row,1,"Enable    "
+                        If B_EditVal = 1 Then
+                            P_PrintValText(B_Row, 11, "Enabled", 1, 1)
+                        Else
+                            P_PrintValText(B_Row, 11, "Disabled", 1, 1)
+                        EndIf
+                    Else
+                        ' Normal render for items 0..10
+                        P_Input1RenderItem(B_Row, B_Idx, B_Act)
+                    EndIf
                 EndIf
             Next B_Row
 
             b_ScrDirty = 0
         EndIf
 
-        ' encoder
+        ' ---- Encoder handling ----
         P_ReadEncoder()
-        If B_EditMode = 0 Then
-            If B_EncDelta = 1 Then
-                If B_Sel < (B_Cnt - 1) Then
-                    Inc B_Sel
-                    Set b_ScrDirty
+        If B_InEdit = 1 And B_Sel = 0 Then
+            ' Editing Enable inline: any click toggles candidate value
+            If B_EncDelta <> 0 Then
+                If B_EditVal = 0 Then
+                    B_EditVal = 1
+                Else
+                    B_EditVal = 0
                 EndIf
-            Else
-                If B_EncDelta = -1 Then
-                    If B_Sel > 0 Then
-                        Dec B_Sel
-                        Set b_ScrDirty
-                    EndIf
-                EndIf
+                Set b_ScrDirty
             EndIf
         Else
-            ' inline edit for item 0 (Enable/Disable)
-            If B_Sel = 0 Then
-                If B_EncDelta <> 0 Then
-                    If B_I1_Enabled = 0 Then
-                        B_I1_Enabled = 1
-                    Else
-                        B_I1_Enabled = 0
+            If B_EncDelta <> 0 Then
+                If B_EncDelta = 1 Then
+                    If B_Sel < B_BackIdx Then
+                        B_Sel = B_Sel + 1
                     EndIf
-                    P_Beeps(1)
-                    Set b_ScrDirty
+                Else
+                    If B_Sel > 0 Then
+                        B_Sel = B_Sel - 1
+                    EndIf
                 EndIf
+                Set b_ScrDirty
             EndIf
         EndIf
 
-        ' button (short press)
+        ' ---- Button handling ----
         P_ReadButton()
         Select P_GetKeyEvent()
             Case 1
-                If B_EditMode = 0 Then
-                    ' enter inline edit for supported items, or act on Back
+                P_Beeps(2)
+                If B_InEdit = 1 Then
+                    ' Commit inline edit for Enable
                     If B_Sel = 0 Then
-                        B_EditMode = 1
-                        Set b_ScrDirty
-                    Else
-                        If B_Sel = 11 Then
-                            P_Beeps(2)
-                            Result = 1         ' return to previous screen
-                            GoTo Exit_V_Input1Menu
-                        Else
-                            ' other items: leave for subsequent tasks
-                            P_Beeps(2)
-                        EndIf
-                    EndIf
-                Else
-                    ' commit and exit inline edit
-                    If B_Sel = 0 Then
+                        B_I1_Enabled = B_EditVal
                         P_SaveSettings()
                     EndIf
-                    B_EditMode = 0
+                    B_InEdit = 0
                     Set b_ScrDirty
+                Else
+                    ' Enter inline edit on Enable, otherwise open editor or Back
+                    If B_Sel = 0 Then
+                        B_InEdit = 1
+                        B_EditVal = B_I1_Enabled
+                        Set b_ScrDirty
+                    Else
+                        If B_Sel = B_BackIdx Then
+                            Result = 1
+                            GoTo Exit_V_Input1Menu
+                        Else
+                            P_Input1EditItem(B_Sel)
+                            Set b_ScrDirty
+                        EndIf
+                    EndIf
                 EndIf
         EndSelect
     Wend
 
 Exit_V_Input1Menu:
 EndProc
+
 '--------------------------------------------------------------
 Proc V_ClockMenu(), Byte
     Dim B_Sel           As Byte
@@ -1908,6 +2219,10 @@ P_LCDHardInit()      ' Robust 4-bit init per Newhaven
 P_LCDSafeInit()      ' Sync with Positron driver
 P_InputInit()
 P_LoadSettings()
+B_I1_FlowType=0
+B_I1_FlowUnits=0
+W_I1_BP_Low=0
+B_I1_RlyLow=MODE_LATCH
 
 b_ScrDirty = 1
 b_ReInitLCD = 0
