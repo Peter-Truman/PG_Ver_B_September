@@ -1,7 +1,7 @@
 '=====================================================================
 ' IRRISYS HMI on Positron8 / PIC18F2525
 ' Single-file build: IRRISYS_MAIN.bas
-' Rev: 2025-09-07a  (no ":" separators, proc names =14 chars, RJ fields)
+' Rev: 2025-09-08b  (no ":" separators, proc names <=14 chars, RJ fields)
 '=====================================================================
 
 '------------------------------ Device -------------------------------
@@ -153,13 +153,6 @@ Dim B_EncDelta   As SByte
 Dim B_KeyEvent   As Byte
 Dim W_Beep       As Word
 
-' Dynamic menu item IDs (Input1)
-Symbol I1_ITEM_BACK    = 200
-Symbol I1_ITEM_LOWBP   = 11      ' Temp/Flow "Low" BP
-Symbol I1_ITEM_RLYLOW  = 12
-Symbol I1_ITEM_TYPE    = 13      ' Flow: Analog/Digital
-Symbol I1_ITEM_UNITS   = 14      ' Flow: %, LpS
-
 ' Flow sub-options
 Symbol FLOWTYPE_ANALOG = 0
 Symbol FLOWTYPE_DIGITAL= 1
@@ -192,10 +185,6 @@ Dim W_EncReadPos   As Word
 Dim B_Option       As Byte
 Dim W_UI_TimeoutS  As Word
 Dim W_UI_PulseMs   As Word
-
-' Button latches
-Dim B_MedSent As Byte
-Dim B_LongSent As Byte
 
 ' Navigation propagate code: 0=normal, 1=back, 2=to main
 Dim B_NavCode      As Byte
@@ -520,8 +509,636 @@ Proc LCD_SetCursor(B_Row As Byte, B_Col As Byte)
     Dim B_Addr As Byte
     B_Addr = $80 + B_Base + (B_Col - 1)
     LCD_WriteCmd(B_Addr)
-
 EndProc
+
+'=====================================================================
+' SIGNED 3-DIGIT INLINE EDITOR  (-500..+500)  [sign, hundreds, tens, units]
+'  - Edits inside () with flashing active element
+'  - Always constrains full value to [-500, +500]
+'  - Returns 1 on commit
+'=====================================================================
+' Signed 3-digit inline editor (-500..+500), flashes active element
+Proc P_EditS3Inlin(ByRef I_Val As SWord, I_Min As SWord, I_Max As SWord, B_Row As Byte, B_Col As Byte), Byte
+    Dim B_Field    As Byte        ' 0=sign, 1=hundreds, 2=tens, 3=units
+    Dim B_Sgn      As Byte        ' 0 = +, 1 = -
+    Dim W_Abs      As Word
+    Dim B_H        As Byte
+    Dim B_T        As Byte
+    Dim B_U        As Byte
+    Dim B_Start    As Byte
+    Dim B_BlinkT   As Byte
+    Dim B_Blink    As Byte
+    Dim W_Tmp      As Word
+    Dim S_Prop     As SWord
+    Dim B_Redraw   As Byte
+
+    If I_Min > -500 Then
+        I_Min = -500
+    EndIf
+    If I_Max < 500 Then
+        I_Max = 500
+    EndIf
+
+    If I_Val < 0 Then
+        B_Sgn = 1
+        W_Abs = 0 - I_Val
+    Else
+        B_Sgn = 0
+        W_Abs = I_Val
+    EndIf
+    If W_Abs > 500 Then
+        W_Abs = 500
+    EndIf
+
+    B_H = W_Abs / 100
+    W_Tmp = W_Abs // 100
+    B_T = W_Tmp / 10
+    B_U = W_Tmp // 10
+    If B_H = 5 Then
+        B_T = 0
+        B_U = 0
+    EndIf
+
+    B_Field  = 0
+    B_Redraw = 1
+    Result   = 0
+
+    While 1 = 1
+        B_BlinkT = L_Millis // 128
+        If (B_BlinkT & 1) = 0 Then
+            B_Blink = 1
+        Else
+            B_Blink = 0
+        EndIf
+
+        If B_Redraw = 1 Then
+            Print At B_Row, B_Col, "          "
+            Print At B_Row, B_Col, "("
+            Print At B_Row, B_Col + 9, ")"
+
+            B_Start = B_Col + 1 + (8 - 4)
+
+            ' Sign
+            If B_Field = 0 And B_Blink = 1 Then
+                Print At B_Row, B_Start, " "
+            Else
+                If B_Sgn = 1 Then
+                    Print At B_Row, B_Start, "-"
+                Else
+                    Print At B_Row, B_Start, "+"
+                EndIf
+            EndIf
+
+            ' Hundreds (Dec1 replaces Chr)
+            If B_Field = 1 And B_Blink = 1 Then
+                Print At B_Row, B_Start + 1, " "
+            Else
+                Print At B_Row, B_Start + 1, Dec1 B_H
+            EndIf
+
+            ' Tens (Dec1 replaces Chr)
+            If B_Field = 2 And B_Blink = 1 Then
+                Print At B_Row, B_Start + 2, " "
+            Else
+                Print At B_Row, B_Start + 2, Dec1 B_T
+            EndIf
+
+            ' Units (Dec1 replaces Chr)
+            If B_Field = 3 And B_Blink = 1 Then
+                Print At B_Row, B_Start + 3, " "
+            Else
+                Print At B_Row, B_Start + 3, Dec1 B_U
+            EndIf
+
+            B_Redraw = 0
+        EndIf
+
+        P_ReadEnc()
+        If B_EncDelta <> 0 Then
+            Select B_Field
+                Case 0
+                    If B_Sgn = 0 Then
+                        S_Prop = 0 - (B_H * 100 + B_T * 10 + B_U)
+                    Else
+                        S_Prop = (B_H * 100 + B_T * 10 + B_U)
+                    EndIf
+                    If S_Prop <= I_Max And S_Prop >= I_Min Then
+                        If B_Sgn = 0 Then
+                            B_Sgn = 1
+                        Else
+                            B_Sgn = 0
+                        EndIf
+                        If B_H = 5 Then
+                            B_T = 0
+                            B_U = 0
+                        EndIf
+                        B_Redraw = 1
+                    EndIf
+
+                Case 1
+                    If B_EncDelta = 1 Then
+                        If B_H < 5 Then
+                            Inc B_H
+                            If B_H = 5 Then
+                                B_T = 0
+                                B_U = 0
+                            EndIf
+                        EndIf
+                    Else
+                        If B_H > 0 Then
+                            Dec B_H
+                        EndIf
+                    EndIf
+                    B_Redraw = 1
+
+                Case 2
+                    If B_H = 5 Then
+                        B_T = 0
+                    Else
+                        If B_EncDelta = 1 Then
+                            If B_T < 9 Then
+                                Inc B_T
+                            EndIf
+                        Else
+                            If B_T > 0 Then
+                                Dec B_T
+                            EndIf
+                        EndIf
+                    EndIf
+                    B_Redraw = 1
+
+                Case 3
+                    If B_H = 5 Then
+                        B_U = 0
+                    Else
+                        If B_EncDelta = 1 Then
+                            If B_U < 9 Then
+                                Inc B_U
+                            EndIf
+                        Else
+                            If B_U > 0 Then
+                                Dec B_U
+                            EndIf
+                        EndIf
+                    EndIf
+                    B_Redraw = 1
+            EndSelect
+
+            S_Prop = B_H * 100 + B_T * 10 + B_U
+            If B_Sgn = 1 Then
+                S_Prop = 0 - S_Prop
+            EndIf
+            If S_Prop > I_Max Then
+                B_Sgn = 0
+                B_H = 5
+                B_T = 0
+                B_U = 0
+                B_Redraw = 1
+            Else
+                If S_Prop < I_Min Then
+                    B_Sgn = 1
+                    B_H = 5
+                    B_T = 0
+                    B_U = 0
+                    B_Redraw = 1
+                EndIf
+            EndIf
+        EndIf
+
+        Select P_GetKeyEvt()
+            Case 1
+                If B_Field < 3 Then
+                    Inc B_Field
+                    B_Redraw = 1
+                Else
+                    W_Abs = B_H * 100 + B_T * 10 + B_U
+                    If B_Sgn = 1 Then
+                        I_Val = 0 - W_Abs
+                    Else
+                        I_Val = W_Abs
+                    EndIf
+                    If I_Val > I_Max Then
+                        I_Val = I_Max
+                    EndIf
+                    If I_Val < I_Min Then
+                        I_Val = I_Min
+                    EndIf
+                    P_Beeps(2)
+                    Result = 1
+                    ExitProc
+                EndIf
+        EndSelect
+
+        If P_UserAbort() = 1 Then
+            Result = 0
+            ExitProc
+        EndIf
+    Wend
+EndProc
+'---------------------------------------------------------------------
+'---------------------------------------------------------------------
+' Stand-alone signed 3-digit inline editor (-500..+500)
+'  - Draws right-justified inside a 10-col field at column 11 as: "(+NNN)"
+'  - Edits: Sign -> Hundreds -> Tens -> Units
+'  - Rotary changes current element; short press advances; after units commits
+'  - Ensures |value| <= 500 at all times (if H=5 then T=U=0)
+'  - Returns 1 on commit with I_Val updated; never aborts on timeout
+'---------------------------------------------------------------------
+'---------------------------------------------------------------------
+' Standalone signed 3-digit editor: (-500 .. +500)
+' UI order: Sign -> Hundreds -> Tens -> Units -> Commit
+' Renders as '(-NNN)' right-justified in the 10-col field at col 11.
+' Returns 1 on commit, I_Val updated; loops until committed.
+' Depends on: P_ReadEnc(), P_ReadBtn(), P_GetKeyEvt(), P_ClrValFld()
+'---------------------------------------------------------------------
+'---------------------------------------------------------------------
+' Standalone signed 3-digit editor: (-500 .. +500)
+' UI order: Sign -> Hundreds -> Tens -> Units -> Commit
+' Displays right-justified "(±NNN)" in the 10-col value field at col 11.
+' Minimizes flicker: only updates on data change or active blink toggle.
+' Returns 1 on commit and updates I_Val.
+' Requires: LCD_SetCursor(), LCD_WriteDat(), P_ReadEnc(), P_ReadBtn(),
+'           P_GetKeyEvt(), P_ClrValFld()
+'---------------------------------------------------------------------
+'---------------------------------------------------------------------
+' Standalone signed 3-digit editor  (-500 .. +500)
+' UI order: Sign -> Hundreds -> Tens -> Units -> Commit
+' Renders right-justified "(±NNN)" in the 10-col value field at col 11.
+' Slow blink (~2 Hz) for active element only.
+' Only updates LCD when a value changes, active field changes, or blink toggles.
+' Returns 1 on commit and updates I_Val.
+' Requires: LCD_SetCursor(), LCD_WriteDat(), P_ReadEnc(), P_ReadBtn(),
+'           P_GetKeyEvt(), P_ClrValFld()
+'---------------------------------------------------------------------
+Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
+    Dim B_Col      As Byte
+    Dim B_Field    As Byte            ' 0=sign, 1=hundreds, 2=tens, 3=units
+    Dim B_Sgn      As Byte            ' 0="+", 1="-"
+    Dim W_Abs      As Word
+    Dim B_H        As Byte            ' 0..5
+    Dim B_T        As Byte            ' 0..9 (constrained by remainder)
+    Dim B_U        As Byte            ' 0..9 (constrained by remainder)
+
+    ' Previous-render cache (to avoid unnecessary writes)
+    Dim P_Sgn      As Byte
+    Dim P_H        As Byte
+    Dim P_T        As Byte
+    Dim P_U        As Byte
+    Dim P_Field    As Byte
+    Dim P_BlkVis   As Byte            ' last blink visibility for active element (0/1/2=invalid)
+
+    ' Layout
+    Dim B_Start    As Byte            ' column of the sign character
+    Dim B_PosAct   As Byte            ' column of active element
+
+    ' Blink rate control (~2 Hz)
+    Dim L_BlkTS    As Dword           ' last toggle timestamp
+    Dim B_BlkVis   As Byte            ' 0 = blank active, 1 = show active
+    Dim B_DoBlink  As Byte            ' flag to update active element for blink
+
+    ' Scratch for remainder-based limits
+    Dim B_Rem      As Byte
+    Dim B_MaxT     As Byte
+    Dim B_MaxU     As Byte
+
+    ' Init layout and initial unpack
+    B_Col = 11
+
+    If I_Val < 0 Then
+        B_Sgn = 1
+        W_Abs = 0 - I_Val
+    Else
+        B_Sgn = 0
+        W_Abs = I_Val
+    EndIf
+    If W_Abs > 500 Then
+        W_Abs = 500
+    EndIf
+
+    B_H = W_Abs / 100
+    W_Abs = W_Abs // 100
+    B_T = W_Abs / 10
+    B_U = W_Abs // 10
+
+    If B_H = 5 Then
+        B_T = 0
+        B_U = 0
+    EndIf
+
+    ' Initial render (once)
+    B_Start = B_Col + 1 + (8 - 4)      ' 4 chars: sign + 3 digits
+    P_ClrValFld(B_Row, B_Col)
+
+    LCD_SetCursor(B_Row, B_Start - 1)
+    LCD_WriteDat(40)                    ' '('
+    LCD_SetCursor(B_Row, B_Col + 9)
+    LCD_WriteDat(41)                    ' ')'
+
+    LCD_SetCursor(B_Row, B_Start)
+    If B_Sgn = 1 Then
+        LCD_WriteDat(45)                ' '-'
+    Else
+        LCD_WriteDat(43)                ' '+'
+    EndIf
+
+    LCD_SetCursor(B_Row, B_Start + 1)
+    LCD_WriteDat(48 + B_H)
+    LCD_SetCursor(B_Row, B_Start + 2)
+    LCD_WriteDat(48 + B_T)
+    LCD_SetCursor(B_Row, B_Start + 3)
+    LCD_WriteDat(48 + B_U)
+
+    ' Prime caches
+    P_Sgn    = B_Sgn
+    P_H      = B_H
+    P_T      = B_T
+    P_U      = B_U
+    B_Field  = 0
+    P_Field  = 0
+    B_PosAct = B_Start                  ' sign column
+    P_BlkVis = 2                        ' invalid to force first blink draw
+    B_BlkVis = 1                        ' start visible
+    L_BlkTS  = L_Millis
+    Result   = 0
+
+    While 1 = 1
+        ' Blink timing ~2 Hz (toggle every 250 ms)
+        B_DoBlink = 0
+        If (L_Millis - L_BlkTS) >= 250 Then
+            If B_BlkVis = 1 Then
+                B_BlkVis = 0
+            Else
+                B_BlkVis = 1
+            EndIf
+            L_BlkTS = L_Millis
+            B_DoBlink = 1
+        EndIf
+
+        ' If active field changed, restore previous active element to solid
+        If B_Field <> P_Field Then
+            Select P_Field
+                Case 0
+                    LCD_SetCursor(B_Row, B_Start)
+                    If B_Sgn = 1 Then
+                        LCD_WriteDat(45)
+                    Else
+                        LCD_WriteDat(43)
+                    EndIf
+                Case 1
+                    LCD_SetCursor(B_Row, B_Start + 1)
+                    LCD_WriteDat(48 + B_H)
+                Case 2
+                    LCD_SetCursor(B_Row, B_Start + 2)
+                    LCD_WriteDat(48 + B_T)
+                Case 3
+                    LCD_SetCursor(B_Row, B_Start + 3)
+                    LCD_WriteDat(48 + B_U)
+            EndSelect
+            P_Field = B_Field
+            P_BlkVis = 2                 ' force immediate blink draw for new field
+            B_PosAct = B_Start + B_Field
+        EndIf
+
+        ' Handle blink toggle only for the active element
+        If B_DoBlink = 1 Or P_BlkVis = 2 Then
+            If B_BlkVis <> P_BlkVis Then
+                LCD_SetCursor(B_Row, B_PosAct)
+                If B_BlkVis = 1 Then
+                    Select B_Field
+                        Case 0
+                            If B_Sgn = 1 Then
+                                LCD_WriteDat(45)
+                            Else
+                                LCD_WriteDat(43)
+                            EndIf
+                        Case 1
+                            LCD_WriteDat(48 + B_H)
+                        Case 2
+                            LCD_WriteDat(48 + B_T)
+                        Case 3
+                            LCD_WriteDat(48 + B_U)
+                    EndSelect
+                Else
+                    LCD_WriteDat(32)      ' blank while hidden
+                EndIf
+                P_BlkVis = B_BlkVis
+            EndIf
+        EndIf
+
+        ' Encoder handling
+        P_ReadEnc()
+        If B_EncDelta <> 0 Then
+            Select B_Field
+                Case 0                    ' toggle sign
+                    If B_Sgn = 0 Then
+                        B_Sgn = 1
+                    Else
+                        B_Sgn = 0
+                    EndIf
+                    If B_Sgn <> P_Sgn Then
+                        ' Update active char immediately respecting blink
+                        LCD_SetCursor(B_Row, B_Start)
+                        If B_Field = 0 And B_BlkVis = 0 Then
+                            LCD_WriteDat(32)
+                        Else
+                            If B_Sgn = 1 Then
+                                LCD_WriteDat(45)
+                            Else
+                                LCD_WriteDat(43)
+                            EndIf
+                        EndIf
+                        P_Sgn = B_Sgn
+                    EndIf
+
+                Case 1                    ' hundreds 0..5, clamp tens/units at 5
+                    If B_EncDelta = 1 Then
+                        If B_H < 5 Then
+                            Inc B_H
+                            If B_H = 5 Then
+                                If B_T <> 0 Or B_U <> 0 Then
+                                    B_T = 0
+                                    B_U = 0
+                                    ' Update T and U solidly (not active)
+                                    LCD_SetCursor(B_Row, B_Start + 2)
+                                    LCD_WriteDat(48)
+                                    LCD_SetCursor(B_Row, B_Start + 3)
+                                    LCD_WriteDat(48)
+                                    P_T = B_T
+                                    P_U = B_U
+                                EndIf
+                            EndIf
+                        EndIf
+                    Else
+                        If B_H > 0 Then
+                            Dec B_H
+                        EndIf
+                    EndIf
+                    If B_H <> P_H Then
+                        LCD_SetCursor(B_Row, B_Start + 1)
+                        If B_Field = 1 And B_BlkVis = 0 Then
+                            LCD_WriteDat(32)
+                        Else
+                            LCD_WriteDat(48 + B_H)
+                        EndIf
+                        P_H = B_H
+                    EndIf
+
+                Case 2                    ' tens constrained by remainder
+                    If B_H = 5 Then
+                        If B_T <> 0 Or B_U <> 0 Then
+                            B_T = 0
+                            B_U = 0
+                            LCD_SetCursor(B_Row, B_Start + 2)
+                            If B_Field = 2 And B_BlkVis = 0 Then
+                                LCD_WriteDat(32)
+                            Else
+                                LCD_WriteDat(48)
+                            EndIf
+                            LCD_SetCursor(B_Row, B_Start + 3)
+                            LCD_WriteDat(48)
+                            P_T = B_T
+                            P_U = B_U
+                        EndIf
+                    Else
+                        B_Rem = 500 - (B_H * 100)
+                        B_MaxT = B_Rem / 10
+                        If B_MaxT > 9 Then
+                            B_MaxT = 9
+                        EndIf
+
+                        If B_EncDelta = 1 Then
+                            If B_T < B_MaxT Then
+                                Inc B_T
+                            EndIf
+                        Else
+                            If B_T > 0 Then
+                                Dec B_T
+                            EndIf
+                        EndIf
+
+                        If B_T <> P_T Then
+                            LCD_SetCursor(B_Row, B_Start + 2)
+                            If B_Field = 2 And B_BlkVis = 0 Then
+                                LCD_WriteDat(32)
+                            Else
+                                LCD_WriteDat(48 + B_T)
+                            EndIf
+                            P_T = B_T
+
+                            ' Clamp units to new remainder
+                            B_Rem = 500 - (B_H * 100) - (B_T * 10)
+                            If B_Rem > 9 Then
+                                B_MaxU = 9
+                            Else
+                                B_MaxU = B_Rem
+                            EndIf
+                            If B_U > B_MaxU Then
+                                B_U = B_MaxU
+                                LCD_SetCursor(B_Row, B_Start + 3)
+                                LCD_WriteDat(48 + B_U)
+                                P_U = B_U
+                            EndIf
+                        EndIf
+                    EndIf
+
+                Case 3                    ' units constrained by remainder
+                    If B_H = 5 Then
+                        If B_U <> 0 Then
+                            B_U = 0
+                            LCD_SetCursor(B_Row, B_Start + 3)
+                            If B_Field = 3 And B_BlkVis = 0 Then
+                                LCD_WriteDat(32)
+                            Else
+                                LCD_WriteDat(48)
+                            EndIf
+                            P_U = B_U
+                        EndIf
+                    Else
+                        B_Rem = 500 - (B_H * 100) - (B_T * 10)
+                        If B_Rem > 9 Then
+                            B_MaxU = 9
+                        Else
+                            B_MaxU = B_Rem
+                        EndIf
+
+                        If B_EncDelta = 1 Then
+                            If B_U < B_MaxU Then
+                                Inc B_U
+                            EndIf
+                        Else
+                            If B_U > 0 Then
+                                Dec B_U
+                            EndIf
+                        EndIf
+
+                        If B_U <> P_U Then
+                            LCD_SetCursor(B_Row, B_Start + 3)
+                            If B_Field = 3 And B_BlkVis = 0 Then
+                                LCD_WriteDat(32)
+                            Else
+                                LCD_WriteDat(48 + B_U)
+                            EndIf
+                            P_U = B_U
+                        EndIf
+                    EndIf
+            EndSelect
+        EndIf
+
+        ' Button: advance / commit
+        P_ReadBtn()
+        Select P_GetKeyEvt()
+            Case 1
+                ' Force current active element visible before advancing
+                LCD_SetCursor(B_Row, B_Start + B_Field)
+                Select B_Field
+                    Case 0
+                        If B_Sgn = 1 Then
+                            LCD_WriteDat(45)
+                        Else
+                            LCD_WriteDat(43)
+                        EndIf
+                    Case 1
+                        LCD_WriteDat(48 + B_H)
+                    Case 2
+                        LCD_WriteDat(48 + B_T)
+                    Case 3
+                        LCD_WriteDat(48 + B_U)
+                EndSelect
+                B_BlkVis = 1
+                P_BlkVis = 1
+                L_BlkTS = L_Millis
+
+                If B_Field < 3 Then
+                    Inc B_Field
+                    B_PosAct = B_Start + B_Field
+                    P_BlkVis = 2            ' force initial blink draw on new field
+                Else
+                    W_Abs = (B_H * 100) + (B_T * 10) + B_U
+                    If B_Sgn = 1 Then
+                        I_Val = 0 - W_Abs
+                    Else
+                        I_Val = W_Abs
+                    EndIf
+                    If I_Val > 500 Then
+                        I_Val = 500
+                    EndIf
+                    If I_Val < -500 Then
+                        I_Val = -500
+                    EndIf
+                    Result = 1
+                    ExitProc
+                EndIf
+        EndSelect
+    Wend
+EndProc
+'---------------------------------------------------------------------
+
+'---------------------------------------------------------------------
+
+'---------------------------------------------------------------------
+
+'---------------------------------------------------------------------
+
 
 '=====================================================================
 ' EEPROM HELPERS
@@ -658,16 +1275,20 @@ Proc P_S2W(I_Val As SWord), Word
 EndProc
 
 '=====================================================================
-' INPUT1 MIRROR SYNC (legacy compat)
+' INPUT1 MIRROR SYNC (bit-pack/unpack using masks; avoids .bit syntax)
 '=====================================================================
 Proc P_I1SyncLoad()
-    If B_I1_FlowMode.0 = 0 Then
+    Dim B_Mask As Byte
+
+    B_Mask = B_I1_FlowMode & %00000001
+    If B_Mask = 0 Then
         B_I1_FlowType = FLOWTYPE_ANALOG
     Else
         B_I1_FlowType = FLOWTYPE_DIGITAL
     EndIf
 
-    If B_I1_FlowMode.1 = 0 Then
+    B_Mask = B_I1_FlowMode & %00000010
+    If B_Mask = 0 Then
         B_I1_FlowUnits = FLOWU_PERCENT
     Else
         B_I1_FlowUnits = FLOWU_LPS
@@ -681,16 +1302,13 @@ Proc P_I1SyncSave()
     Dim B_Mode As Byte
 
     B_Mode = 0
+
     If B_I1_FlowType = FLOWTYPE_DIGITAL Then
-        Set B_Mode.0
-    Else
-        Clear B_Mode.0
+        B_Mode = B_Mode Or %00000001
     EndIf
 
     If B_I1_FlowUnits = FLOWU_LPS Then
-        Set B_Mode.1
-    Else
-        Clear B_Mode.1
+        B_Mode = B_Mode Or %00000010
     EndIf
 
     B_I1_FlowMode = B_Mode
@@ -906,7 +1524,7 @@ Proc P_PValTmeRJ(B_Row As Byte, B_Col As Byte, W_Seconds As Word, B_Active As By
 
     P_PrnMMSS(B_Row, B_Start, W_Seconds)
 EndProc
-'---------------------------------------------------------------------
+
 Proc P_PValIntRJ4(B_Row As Byte, B_Col As Byte, I_Val As SWord, B_Active As Byte, B_Edit As Byte)
     Dim B_Len   As Byte
     Dim B_Start As Byte
@@ -922,7 +1540,7 @@ Proc P_PValIntRJ4(B_Row As Byte, B_Col As Byte, I_Val As SWord, B_Active As Byte
     EndIf
 
     B_Start = B_Col + 1 + (8 - B_Len)
-    Print At B_Row, B_Col, "          "       ' clear 10-col value field
+    Print At B_Row, B_Col, "          "
 
     If B_Active = 1 Then
         If B_Edit = 1 Then
@@ -941,122 +1559,6 @@ Proc P_PValIntRJ4(B_Row As Byte, B_Col As Byte, I_Val As SWord, B_Active As Byte
     Else
         Print At B_Row, B_Start, Dec4 I_Val
     EndIf
-EndProc
-
-'--------------------- Signed 3-digit editor render -------------------
-' RJ inside the 10-col value field at B_Col..B_Col+9
-' Always prints "(+ddd)" while editing, returns the start col of sign
-Proc P_PrintSInt3E(B_Row As Byte, B_Col As Byte, I_Val As SWord), Byte
-    Dim B_Start As Byte
-    Dim W_A     As Word
-
-    ' Fixed width: 4 chars => sign + 3 digits
-    B_Start = B_Col + 1 + (8 - 4)
-
-    P_ClrValFld(B_Row, B_Col)
-
-    ' Open and close parens for edit
-    Print At B_Row, B_Start - 1, "("
-    Print At B_Row, B_Col + 9, ")"
-
-    If I_Val < 0 Then
-        Print At B_Row, B_Start, "-"
-        W_A = 0 - I_Val
-        Print At B_Row, B_Start + 1, Dec3 W_A
-    Else
-        Print At B_Row, B_Start, "+"
-        Print At B_Row, B_Start + 1, Dec3 I_Val
-    EndIf
-
-    Result = B_Start
-EndProc
-
-'--------------------- Signed 3-digit inline editor -------------------
-' Edits sign+3 digits in place on the provided row/col.
-' Steps per active digit: 100, 10, 1. Bounds applied each step.
-' Returns 1 if value committed, 0 if aborted.
-Proc P_EditSInt3Inl(B_Row As Byte, B_Col As Byte, ByRef I_Val As SWord, I_Min As SWord, I_Max As SWord), Byte
-    Dim I_Edit   As SWord
-    Dim B_Digit  As Byte
-    Dim B_Start  As Byte
-    Dim B_ColDig As Byte
-    Dim B_Step   As Byte
-    Dim B_Redraw As Byte
-
-    ' Clamp initial
-    If I_Val < I_Min Then
-        I_Edit = I_Min
-    Else
-        If I_Val > I_Max Then
-            I_Edit = I_Max
-        Else
-            I_Edit = I_Val
-        EndIf
-    EndIf
-
-    B_Digit = 0
-    B_Redraw = 1
-
-    LCD_CursorOn()
-
-    While 1 = 1
-        If B_Redraw = 1 Then
-            B_Start = P_PrintSInt3E(B_Row, B_Col, I_Edit)
-            B_ColDig = B_Start + 1 + B_Digit   ' hundreds=+1, tens=+2, units=+3
-            LCD_SetCursor(B_Row, B_ColDig)
-            B_Redraw = 0
-        EndIf
-
-        P_ReadEnc()
-        If B_EncDelta <> 0 Then
-            If B_Digit = 0 Then
-                B_Step = 100
-            Else
-                If B_Digit = 1 Then
-                    B_Step = 10
-                Else
-                    B_Step = 1
-                EndIf
-            EndIf
-
-            If B_EncDelta = 1 Then
-                If I_Edit + B_Step <= I_Max Then
-                    I_Edit = I_Edit + B_Step
-                    B_Redraw = 1
-                EndIf
-            Else
-                If I_Edit >= (I_Min + B_Step) Then
-                    I_Edit = I_Edit - B_Step
-                    B_Redraw = 1
-                Else
-                    If I_Edit > I_Min Then
-                        I_Edit = I_Min
-                        B_Redraw = 1
-                    EndIf
-                EndIf
-            EndIf
-        EndIf
-
-        P_ReadBtn()
-        Select P_GetKeyEvt()
-            Case 1
-                If B_Digit < 2 Then
-                    Inc B_Digit
-                    B_Redraw = 1
-                Else
-                    I_Val = I_Edit
-                    LCD_CursorOff()
-                    Result = 1
-                    ExitProc
-                EndIf
-        EndSelect
-
-        If P_UserAbort() = 1 Then
-            LCD_CursorOff()
-            Result = 0
-            ExitProc
-        EndIf
-    Wend
 EndProc
 
 '=====================================================================
@@ -1673,18 +2175,21 @@ Proc V_SetupMenu(), Byte
     Wend
 EndProc
 
-'-------------------- INPUT 1 MAIN MENU (inline edit) ----------------
+'-------------------- INPUT 1 MAIN MENU (with S3 editor) -------------
+'-------------------- INPUT 1 MAIN MENU (with S3 editor) -------------
 Proc V_Input1Menu(), Byte
-    Dim B_Sel            As Byte
-    Dim B_Top            As Byte
-    Dim B_Cnt            As Byte
-    Dim B_Act            As Byte
-    Dim B_Row            As Byte
-    Dim B_Idx            As Byte
-    Dim B_BackIdx        As Byte
-    Dim B_RowSel         As Byte
-    Dim B_FieldId        As Byte
+    Dim B_Sel      As Byte
+    Dim B_Top      As Byte
+    Dim B_Cnt      As Byte
+    Dim B_Act      As Byte
+    Dim B_Row      As Byte
+    Dim B_Idx      As Byte
+    Dim B_BackIdx  As Byte
+    Dim B_FieldId  As Byte
+    Dim B_RowSel   As Byte
+    Dim B_Ed       As Byte
 
+    ' Logical field ids
     Symbol F_ENABLE   = 0
     Symbol F_SENSOR   = 1
     Symbol F_SCALE4   = 2
@@ -1703,28 +2208,31 @@ Proc V_Input1Menu(), Byte
     Set b_ScrDirty
 
     While 1 = 1
+        ' item count depends on sensor type
         If B_I1_SensorT = SENSOR_PRES Then
             B_Cnt = 12
         Else
             If B_I1_SensorT = SENSOR_TEMP Then
                 B_Cnt = 10
             Else
-                B_Cnt = 3
+                ' FLOW: reduced list
+                B_Cnt = 5
             EndIf
         EndIf
-
         B_BackIdx = B_Cnt - 1
 
         If b_ScrDirty = 1 Then
+            P_Beeps(1)
             P_DrawTitle("INPUT 1             ")
             P_ClrLine(2)
             P_ClrLine(3)
             P_ClrLine(4)
 
+            ' windowing
             If B_Sel <= 1 Then
                 B_Top = 0
             Else
-                If B_Sel >= B_Cnt - 1 Then
+                If B_Sel >= (B_Cnt - 1) Then
                     If B_Cnt > 2 Then
                         B_Top = B_Cnt - 3
                     Else
@@ -1736,7 +2244,7 @@ Proc V_Input1Menu(), Byte
             EndIf
 
             For B_Row = 2 To 4
-                B_Idx = B_Top + B_Row - 2
+                B_Idx = B_Top + (B_Row - 2)
                 If B_Idx <= B_BackIdx Then
                     If B_Idx = B_Sel Then
                         B_Act = 1
@@ -1744,7 +2252,7 @@ Proc V_Input1Menu(), Byte
                         B_Act = 0
                     EndIf
 
-                    ' Map index -> field id
+                    ' map index -> field id
                     If B_I1_SensorT = SENSOR_PRES Then
                         Select B_Idx
                             Case 0
@@ -1797,19 +2305,23 @@ Proc V_Input1Menu(), Byte
                                     B_FieldId = F_BACK
                             EndSelect
                         Else
-                            If B_Idx = 0 Then
-                                B_FieldId = F_ENABLE
-                            Else
-                                If B_Idx = 1 Then
+                            ' FLOW
+                            Select B_Idx
+                                Case 0
+                                    B_FieldId = F_ENABLE
+                                Case 1
                                     B_FieldId = F_SENSOR
-                                Else
+                                Case 2
+                                    B_FieldId = F_DISPLAY
+                                Case 3
+                                    B_FieldId = F_RLY_SLP
+                                Case Else
                                     B_FieldId = F_BACK
-                                EndIf
-                            EndIf
+                            EndSelect
                         EndIf
                     EndIf
 
-                    ' Render rows
+                    ' render row
                     If B_FieldId = F_BACK Then
                         P_PrintRowRJ(B_Row, "Back", B_Act)
                     Else
@@ -1835,12 +2347,16 @@ Proc V_Input1Menu(), Byte
                                 EndIf
 
                             Case F_SCALE4
-                                Print At B_Row,1,"Scale4ma  "
-                                P_PValIntRJ4(B_Row, 11, P_W2S(W_I1_Scale4), B_Act, 0)
+                                Print At B_Row,1,"Scale 4 ma"
+                                Dim I_S4 As SWord
+                                I_S4 = P_W2S(W_I1_Scale4)
+                                P_PValIntRJ4(B_Row, 11, I_S4, B_Act, 0)
 
                             Case F_SCALE20
                                 Print At B_Row,1,"Scale20ma "
-                                P_PValIntRJ4(B_Row, 11, P_W2S(W_I1_Scale20), B_Act, 0)
+                                Dim I_S20 As SWord
+                                I_S20 = P_W2S(W_I1_Scale20)
+                                P_PValIntRJ4(B_Row, 11, I_S20, B_Act, 0)
 
                             Case F_BP_HIGH
                                 If B_I1_SensorT = SENSOR_PRES Then
@@ -1916,42 +2432,29 @@ Proc V_Input1Menu(), Byte
             b_ScrDirty = 0
         EndIf
 
-        ' Encoder navigation
+        ' encoder navigation
         P_ReadEnc()
         If B_EncDelta <> 0 Then
             If B_EncDelta = 1 Then
                 If B_Sel < B_BackIdx Then
-                    B_Sel = B_Sel + 1
+                    Inc B_Sel
                 EndIf
             Else
                 If B_Sel > 0 Then
-                    B_Sel = B_Sel - 1
+                    Dec B_Sel
                 EndIf
             EndIf
             Set b_ScrDirty
         EndIf
 
-        ' Button handling
+        ' button handling
         P_ReadBtn()
         Select P_GetKeyEvt()
             Case 1
-                ' Compute row where the selected item is currently drawn
-                If B_Sel <= 1 Then
-                    B_Top = 0
-                Else
-                    If B_Sel >= B_Cnt - 1 Then
-                        If B_Cnt > 2 Then
-                            B_Top = B_Cnt - 3
-                        Else
-                            B_Top = 0
-                        EndIf
-                    Else
-                        B_Top = B_Sel - 1
-                    EndIf
-                EndIf
+                ' which row currently displays the selection?
                 B_RowSel = 2 + (B_Sel - B_Top)
 
-                ' Map selection to field id
+                ' recompute field id for current selection
                 If B_I1_SensorT = SENSOR_PRES Then
                     Select B_Sel
                         Case 0
@@ -2004,19 +2507,23 @@ Proc V_Input1Menu(), Byte
                                 B_FieldId = F_BACK
                         EndSelect
                     Else
-                        If B_Sel = 0 Then
-                            B_FieldId = F_ENABLE
-                        Else
-                            If B_Sel = 1 Then
+                        ' FLOW
+                        Select B_Sel
+                            Case 0
+                                B_FieldId = F_ENABLE
+                            Case 1
                                 B_FieldId = F_SENSOR
-                            Else
+                            Case 2
+                                B_FieldId = F_DISPLAY
+                            Case 3
+                                B_FieldId = F_RLY_SLP
+                            Case Else
                                 B_FieldId = F_BACK
-                            EndIf
-                        EndIf
+                        EndSelect
                     EndIf
                 EndIf
 
-                ' Act on selection
+                ' actions
                 Select B_FieldId
                     Case F_BACK
                         P_Beeps(2)
@@ -2024,99 +2531,89 @@ Proc V_Input1Menu(), Byte
                         ExitProc
 
                     Case F_ENABLE
-                        P_Beeps(1)
-                        DelayMS 60
-                        P_Beeps(1)
-                        If B_I1_Enabled = 0 Then
-                            B_I1_Enabled = 1
-                        Else
-                            B_I1_Enabled = 0
+                        B_Ed = P_EditYN(B_I1_Enabled)
+                        If B_Ed = 1 Then
+                            P_SaveInput(1)
                         EndIf
-                        P_SaveInput(1)
                         Set b_ScrDirty
 
                     Case F_SENSOR
-                        P_Beeps(1)
-                        DelayMS 60
-                        P_Beeps(1)
-                        If B_I1_SensorT = SENSOR_PRES Then
-                            B_I1_SensorT = SENSOR_TEMP
-                        Else
-                            If B_I1_SensorT = SENSOR_TEMP Then
-                                B_I1_SensorT = SENSOR_FLOW
-                            Else
-                                B_I1_SensorT = SENSOR_PRES
-                            EndIf
+                        B_Ed = P_EditEnum3(B_I1_SensorT)
+                        If B_Ed = 1 Then
+                            P_SaveInput(1)
                         EndIf
-                        P_SaveInput(1)
                         Set b_ScrDirty
 
                     Case F_SCALE4
-                        Dim I_Tmp As SWord
-                        I_Tmp = P_W2S(W_I1_Scale4)
-                        If P_EditSInt3Inl(B_RowSel, 11, I_Tmp, -100, 999) = 1 Then
-                            W_I1_Scale4 = P_S2W(I_Tmp)
+                        Dim I_Work As SWord
+                        I_Work = P_W2S(W_I1_Scale4)
+                        If P_EditS3Stand(I_Work, B_RowSel) = 1 Then
+                            W_I1_Scale4 = P_S2W(I_Work)
                             P_SaveInput(1)
                         EndIf
                         Set b_ScrDirty
 
                     Case F_SCALE20
-                        Dim I_Tmp2 As SWord
-                        I_Tmp2 = P_W2S(W_I1_Scale20)
-                        If P_EditSInt3Inl(B_RowSel, 11, I_Tmp2, -100, 999) = 1 Then
-                            W_I1_Scale20 = P_S2W(I_Tmp2)
+                        Dim I_Work2 As SWord
+                        I_Work2 = P_W2S(W_I1_Scale20)
+                        If P_EditS3Stand(I_Work2, B_RowSel) = 1 Then
+                            W_I1_Scale20 = P_S2W(I_Work2)
                             P_SaveInput(1)
                         EndIf
                         Set b_ScrDirty
 
                     Case F_BP_HIGH
-                        If B_I1_SensorT = SENSOR_PRES Then
-                            If P_EditMMSS(W_I1_BP_High) = 1 Then
-                                P_SaveInput(1)
-                            EndIf
-                            Set b_ScrDirty
+                        B_Ed = P_EditMMSS(W_I1_BP_High)
+                        If B_Ed = 1 Then
+                            P_SaveInput(1)
                         EndIf
+                        Set b_ScrDirty
 
                     Case F_BP_PLP
-                        If B_I1_SensorT = SENSOR_PRES Then
-                            If P_EditMMSS(W_I1_BP_PLP) = 1 Then
-                                P_SaveInput(1)
-                            EndIf
-                            Set b_ScrDirty
+                        B_Ed = P_EditMMSS(W_I1_BP_PLP)
+                        If B_Ed = 1 Then
+                            P_SaveInput(1)
                         EndIf
+                        Set b_ScrDirty
 
                     Case F_BP_SLP
-                        If P_EditMMSS(W_I1_BP_SLP) = 1 Then
+                        B_Ed = P_EditMMSS(W_I1_BP_SLP)
+                        If B_Ed = 1 Then
                             P_SaveInput(1)
                         EndIf
                         Set b_ScrDirty
 
                     Case F_RLY_HIGH
-                        If P_EditEnum3(B_I1_RlyHigh) = 1 Then
+                        B_Ed = P_EditEnum3(B_I1_RlyHigh)
+                        If B_Ed = 1 Then
                             P_SaveInput(1)
                         EndIf
                         Set b_ScrDirty
 
                     Case F_RLY_PLP
-                        If P_EditEnum3(B_I1_RlyPLP) = 1 Then
+                        B_Ed = P_EditEnum3(B_I1_RlyPLP)
+                        If B_Ed = 1 Then
                             P_SaveInput(1)
                         EndIf
                         Set b_ScrDirty
 
                     Case F_RLY_SLP
-                        If P_EditEnum3(B_I1_RlySLP) = 1 Then
+                        B_Ed = P_EditEnum3(B_I1_RlySLP)
+                        If B_Ed = 1 Then
                             P_SaveInput(1)
                         EndIf
                         Set b_ScrDirty
 
                     Case F_DISPLAY
-                        If P_EditYN(B_I1_Display) = 1 Then
+                        B_Ed = P_EditYN(B_I1_Display)
+                        If B_Ed = 1 Then
                             P_SaveInput(1)
                         EndIf
                         Set b_ScrDirty
                 EndSelect
         EndSelect
 
+        ' inactivity abort to main
         If P_UserAbort() <> 0 Then
             Result = 1
             ExitProc
