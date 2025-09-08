@@ -1,3 +1,2 @@
-18F2525,14930,502,32
-    Program Compiled OK. 14930 Bytes used from a possible 49152
-    502 Variables used in the 18F2525 from a possible 3967
+ERROR
+Error at Line [1391]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Too many parameters. 10 maximum! ***
