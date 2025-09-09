@@ -1,0 +1,242 @@
+# Positron8 BASIC Style Guide - IRRISYS Project
+
+## Critical Syntax Rules
+
+### 1. Colon Usage - VERY IMPORTANT
+**ALLOWED** (single statement after Then):
+```basic
+If B_I1_FlowType = Flow_Type_Dig Then B_Mode = B_Mode Or %00000001
+```
+
+**NOT ALLOWED** (multiple statements with colons):
+```basic
+If X = y Then Y=X: Else Y=Y*2: EndIf
+```
+
+**Correct format for multi-statement conditionals:**
+```basic
+If B_Idx = B_Sel Then
+    B_Act = 1
+Else
+    B_Act = 0
+EndIf
+```
+
+### 2. Case Statement Format
+**NOT ALLOWED:**
+```basic
+Case 0 : P_PrintRow(B_Row, "Main Menu", B_Act)
+```
+
+**CORRECT:**
+```basic
+Case 0
+    P_PrintRow(B_Row, "Main Menu", B_Act)
+```
+
+### 3. Procedure Parameters
+- **Maximum 10 parameters** per procedure
+- No line continuation characters (`_`) in procedure definitions
+- Use single line for procedure signature
+
+**CORRECT:**
+```basic
+Proc V_InputMenu(B_In As Byte), Byte
+```
+
+### 4. Variable Assignments
+**Multiple assignments on one line (with colons) - ALLOWED:**
+```basic
+B_Sel = 0 : B_Top = 0
+P_Sgn = B_Sgn : P_H = B_H : P_T = B_T : P_U = B_U
+```
+
+**Multiple statements - MUST use line breaks:**
+```basic
+B_Len = Len S_Value
+If B_Len > 8 Then
+    B_Len = 8
+EndIf
+```
+
+## Code Structure Guidelines
+
+### 1. Section Organization
+```basic
+'---------XXXXXXXXXXXX Section N START XXXXXXXX--------
+' Section content here
+'---------XXXXXXXXXXXX Section N END XXXXXXXX--------
+```
+
+### 2. Procedure Structure
+```basic
+Proc ProcedureName(Param As Type), ReturnType
+    Dim LocalVar As Type
+    
+    ' Procedure body
+    
+    Result = Value  ' For functions
+EndProc
+```
+
+### 3. Control Structures
+```basic
+' If statements
+If Condition Then
+    Statement
+Else
+    Statement
+EndIf
+
+' Select statements  
+Select Variable
+    Case Value1
+        Statement
+    Case Value2
+        Statement
+    Case Else
+        Statement
+EndSelect
+
+' While loops
+While Condition
+    Statement
+Wend
+
+' For loops
+For Variable = Start To End
+    Statement
+Next Variable
+```
+
+## EEPROM System Architecture
+
+### 1. Block Structure
+- System block: 32 bytes with checksum
+- Input blocks: 32 bytes each with checksum
+- Backup area: Mirror of main blocks
+- Magic byte validation: $A5
+- Version control: $01
+
+### 2. Wear Leveling
+- Write cycle tracking per block
+- Automatic backup after 1000 writes
+- Maximum 10000 writes per block
+
+### 3. Error Handling
+- Magic byte validation
+- Checksum verification
+- Backup recovery
+- Legacy migration
+
+## Menu System Architecture
+
+### 1. Generic Input Menu
+- Single parameter approach (B_In As Byte)
+- Local variable copies from globals
+- Save-back pattern after edits
+- Adaptive field layout by sensor type
+
+### 2. Navigation Pattern
+```basic
+B_NavCode = 0  ' normal
+B_NavCode = 1  ' back
+B_NavCode = 2  ' to main
+```
+
+### 3. UI Helpers
+- Right-justified value fields
+- Proper active/edit indication
+- Timeout handling
+- Screen dirty flags
+
+## Common Patterns
+
+### 1. Editor Pattern
+```basic
+Proc P_EditValue(ByRef Value As Type), Byte
+    Dim LocalCopy As Type
+    LocalCopy = Value
+    Set b_ScrDirty
+    
+    While 1 = 1
+        ' UI update logic
+        ' Input handling
+        ' Validation
+        
+        If CommitCondition Then
+            Value = LocalCopy
+            Result = 1
+            ExitProc
+        EndIf
+        
+        If P_UserAbort() = 1 Then
+            Result = 0
+            ExitProc
+        EndIf
+    Wend
+EndProc
+```
+
+### 2. Menu Pattern
+```basic
+Proc V_MenuName(), Byte
+    Dim B_Sel As Byte
+    Set b_ScrDirty
+    
+    While 1 = 1
+        ' Display logic
+        ' Navigation logic
+        ' Action handling
+        
+        If P_UserAbort() <> 0 Then
+            Result = 1
+            ExitProc
+        EndIf
+    Wend
+EndProc
+```
+
+### 3. Safe EEPROM Pattern
+```basic
+B_Status = P_EE_SafeWriteB(Address, Value)
+If B_Status <> EE_OK Then
+    Result = B_Status
+    ExitProc
+EndIf
+```
+
+## Critical Functions
+
+### 1. Core System
+- `P_LoadConfig()` - Load all configuration from EEPROM
+- `P_SaveInputConfig(B_InputNum)` - Save input configuration
+- `P_SaveSystemConfig()` - Save system settings
+
+### 2. UI Framework
+- `P_UserAbort()` - Timeout and escape handling
+- `P_ReadEnc()` - Encoder input processing
+- `P_GetKeyEvt()` - Button event processing
+
+### 3. Display Helpers
+- `P_PValTxtRJ()` - Right-justified text values
+- `P_PValIntRJ4()` - Right-justified signed integers
+- `P_PValTmeRJ()` - Right-justified time values
+
+## Testing Checklist
+
+- [ ] All procedures have ≤10 parameters
+- [ ] No colon-separated multi-statements
+- [ ] All Case statements use line breaks
+- [ ] EEPROM operations include error checking
+- [ ] Menu timeouts work correctly
+- [ ] Configuration saves/loads properly
+- [ ] Input validation functions correctly
+
+## File Recovery Notes
+
+This style guide preserves the working syntax patterns from the IRRISYS project. The code successfully compiles under Positron8 BASIC when following these guidelines. Key breakthrough was understanding the colon usage rules and parameter limits.
+
+**Last Known Working State:** September 2025
+**Architecture:** Improved EEPROM + Complete Menu System
+**Status:** Syntax-compliant, ready for compilation
