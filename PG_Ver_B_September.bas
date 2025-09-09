@@ -1550,9 +1550,19 @@ Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
     Dim B_MaxUnits  As Byte
     Dim B_Col       As Byte
     Dim B_Start     As Byte
+    Dim W_BtnTimer  As Word         ' Local button hold timer
+    Dim B_BtnPressed As Byte        ' Button state tracker
+    Dim I_OrigVal   As SWord        ' Store original value for restore
     
     B_Col = 11  ' Column where the value field starts
     B_Start = B_Col + 1 + (8 - 4)  ' Right-justified start position
+    
+    ' Initialize button tracking
+    W_BtnTimer = 0
+    B_BtnPressed = 0
+    
+    ' Store original value for potential restore
+    I_OrigVal = I_Val
     
     ' Extract current value
     If I_Val < 0 Then
@@ -1602,6 +1612,58 @@ Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
         LCD_SetCursor(B_Row, B_Start + 3)
         LCD_WriteDat(48 + B_Units)
         
+        ' Check button state for long press detection
+        If _BTN = 0 Then  ' Button pressed (active low)
+            If B_BtnPressed = 0 Then
+                ' Button just pressed - start timer
+                B_BtnPressed = 1
+                W_BtnTimer = 0
+            Else
+                ' Button held - increment timer (approximate 1ms per loop)
+                If W_BtnTimer < 65535 Then
+                    Inc W_BtnTimer
+                EndIf
+                
+                ' Check for long press (750ms)
+                If W_BtnTimer >= 750 Then
+                    P_Beeps(3)
+                    I_Val = I_OrigVal  ' Restore original value
+                    Result = 0  ' Exit without saving
+                    ExitProc
+                EndIf
+            EndIf
+        Else
+            ' Button released
+            If B_BtnPressed = 1 Then
+                ' Was pressed, now released - check for short press
+                If W_BtnTimer < 750 Then
+                    ' Short press - handle normally
+                    P_Beeps(1)
+                    If B_Field < 3 Then
+                        Inc B_Field
+                    Else
+                        ' Commit the value
+                        W_Composite = (B_100s * 100) + (B_10s * 10) + B_Units
+                        If B_Sign = 1 Then
+                            I_Val = 0 - W_Composite
+                        Else
+                            I_Val = W_Composite
+                        EndIf
+                        
+                        ' Final boundary check
+                        If I_Val > 500 Then I_Val = 500
+                        If I_Val < -500 Then I_Val = -500
+                        
+                        P_Beeps(2)
+                        Result = 1
+                        ExitProc
+                    EndIf
+                EndIf
+            EndIf
+            B_BtnPressed = 0
+            W_BtnTimer = 0
+        EndIf
+        
         P_ReadEnc()
         If B_EncDelta <> 0 Then
             P_Beeps(1)  ' Beep on any encoder movement
@@ -1642,7 +1704,16 @@ Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
                     If B_100s = 5 Then
                         B_10s = 0
                         B_Units = 0
+                        ' Update tens and units display
+                        LCD_SetCursor(B_Row, B_Start + 2)
+                        LCD_WriteDat(48 + B_10s)
+                        LCD_SetCursor(B_Row, B_Start + 3)
+                        LCD_WriteDat(48 + B_Units)
                     EndIf
+                    
+                    ' Update hundreds display immediately
+                    LCD_SetCursor(B_Row, B_Start + 1)
+                    LCD_WriteDat(48 + B_100s)
                     
                 Case 2  ' 10s field
                     ' Calculate boundaries
@@ -1675,7 +1746,14 @@ Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
                     W_Composite = (B_100s * 100) + (B_10s * 10) + B_Units
                     If W_Composite > 500 Then
                         B_Units = 500 - (B_100s * 100) - (B_10s * 10)
+                        ' Update units display
+                        LCD_SetCursor(B_Row, B_Start + 3)
+                        LCD_WriteDat(48 + B_Units)
                     EndIf
+                    
+                    ' Update tens display immediately
+                    LCD_SetCursor(B_Row, B_Start + 2)
+                    LCD_WriteDat(48 + B_10s)
                     
                 Case 3  ' Units field
                     ' Calculate max units
@@ -1700,39 +1778,15 @@ Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
                             B_Units = B_MaxUnits  ' Roll under to max
                         EndIf
                     EndIf
+                    
+                    ' Update units display immediately
+                    LCD_SetCursor(B_Row, B_Start + 3)
+                    LCD_WriteDat(48 + B_Units)
             EndSelect
         EndIf
         
-        P_ReadBtn()
-        Select P_GetKeyEvt()
-            Case 1
-                P_Beeps(1)
-                If B_Field < 3 Then
-                    Inc B_Field
-                Else
-                    ' Commit the value
-                    W_Composite = (B_100s * 100) + (B_10s * 10) + B_Units
-                    If B_Sign = 1 Then
-                        I_Val = 0 - W_Composite
-                    Else
-                        I_Val = W_Composite
-                    EndIf
-                    
-                    ' Final boundary check
-                    If I_Val > 500 Then I_Val = 500
-                    If I_Val < -500 Then I_Val = -500
-                    
-                    P_Beeps(2)
-                    Result = 1
-                    ExitProc
-                EndIf
-        EndSelect
-        
-        ' Note: P_UserAbort() commented out for now
-        ' If P_UserAbort() = 1 Then
-        '     Result = 0
-        '     ExitProc
-        ' EndIf
+        ' Small delay to prevent tight loop and allow timer to work properly
+        DelayMS 1
     Wend
 EndProc
 '=====================================================================
@@ -2049,10 +2103,16 @@ Proc V_InputMenu(B_In As Byte), Byte
                                 EndIf
 
                             Case F_SCALE4
-                                Print At B_Row,1,"Scale 4 ma"
-                                Dim I_S4 As SWord
-                                I_S4 = P_W2S(W_Scale4)
-                                P_PValIntRJ4(B_Row, 11, I_S4, B_Act, 0)
+                                Dim I_Work As SWord
+                                I_Work = P_W2S(W_Scale4)
+                                Dim B_EditResult As Byte
+                                B_EditResult = P_EditS3Stand(I_Work, B_RowSel)
+                                If B_EditResult = 1 Then
+                                    W_Scale4 = P_S2W(I_Work)
+                                    ' Save back to global and save config
+                                EndIf
+                                ' If B_EditResult = 2, just continue (long press exit)
+                                Set b_ScrDirty
 
                             Case F_SCALE20
                                 Print At B_Row,1,"Scale20ma "
@@ -2264,7 +2324,7 @@ Proc V_InputMenu(B_In As Byte), Byte
                         Set b_ScrDirty
 
                     Case F_SCALE4
-                        Dim I_Work As SWord
+                        'Dim I_Work As SWord
                         I_Work = P_W2S(W_Scale4)
                         If P_EditS3Stand(I_Work, B_RowSel) = 1 Then
                             W_Scale4 = P_S2W(I_Work)
