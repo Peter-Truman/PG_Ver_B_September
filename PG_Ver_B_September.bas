@@ -271,7 +271,7 @@ Dim B_I3_Display  As Byte
 Section_2:
 '---------XXXXXXXXXXXX Section 2 START XXXXXXXX--------
 '=====================================================================
-' TIMER0 ISR (1ms) – debounce, encoder, button, beeper
+' TIMER0 ISR (1ms) ? debounce, encoder, button, beeper
 '=====================================================================
 T0CON = %11000100
 TMR0L = 6
@@ -795,7 +795,7 @@ Proc P_InputInit()
 EndProc
 
 Proc P_Beeps(B_Type As Byte)
-    HRSOut "Beep type: ", Dec B_Type, 13  ' Debug output
+    'HRSOut "Beep type: ", Dec B_Type, 13  ' Debug output
 	Select B_Type
 		Case 0
 			W_Beep = 10
@@ -1550,9 +1550,17 @@ Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
     Dim B_MaxUnits  As Byte
     Dim B_Col       As Byte
     Dim B_Start     As Byte
+    Dim I_OrigVal   As SWord        ' Store original value for restore
+    Dim W_BtnHoldTime As Word       ' Track button hold time using ISR data
+    Dim L_LastBlink As Dword        ' Track blink timing
+    Dim B_BlinkState As Byte        ' 0=show char, 1=hide char
+    Dim B_ForceUpdate As Byte       ' Force display update flag
     
     B_Col = 11  ' Column where the value field starts
     B_Start = B_Col + 1 + (8 - 4)  ' Right-justified start position
+    
+    ' Store original value for potential restore
+    I_OrigVal = I_Val
     
     ' Extract current value
     If I_Val < 0 Then
@@ -1576,6 +1584,9 @@ Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
     
     B_Field = 0
     B_Changed = 0
+    L_LastBlink = L_Millis
+    B_BlinkState = 0
+    B_ForceUpdate = 1
     
     ' Initial display - show parentheses to indicate edit mode
     P_ClrValFld(B_Row, B_Col)
@@ -1585,26 +1596,89 @@ Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
     LCD_WriteDat(41)  ' ')'
     
     While 1 = 1
-        ' Update the display
-        LCD_SetCursor(B_Row, B_Start)
-        If B_Sign = 1 Then
-            LCD_WriteDat(45)  ' '-'
-        Else
-            LCD_WriteDat(43)  ' '+'
+        ' Check for 2Hz blink timing (250ms intervals)
+        If (L_Millis - L_LastBlink) >= 250 Then
+            L_LastBlink = L_Millis
+            If B_BlinkState = 0 Then
+                B_BlinkState = 1
+            Else
+                B_BlinkState = 0
+            EndIf
+            B_ForceUpdate = 1
         EndIf
         
-        LCD_SetCursor(B_Row, B_Start + 1)
-        LCD_WriteDat(48 + B_100s)  ' '0' + digit
+        ' Update the display only when needed
+        If B_ForceUpdate = 1 Then
+            B_ForceUpdate = 0
+            
+            ' Display sign (blink if field 0 is active)
+            LCD_SetCursor(B_Row, B_Start)
+            If B_Field = 0 And B_BlinkState = 1 Then
+                LCD_WriteDat(32)  ' Space when blinking
+            Else
+                If B_Sign = 1 Then
+                    LCD_WriteDat(45)  ' '-'
+                Else
+                    LCD_WriteDat(43)  ' '+'
+                EndIf
+            EndIf
+            
+            ' Display hundreds (blink if field 1 is active)
+            LCD_SetCursor(B_Row, B_Start + 1)
+            If B_Field = 1 And B_BlinkState = 1 Then
+                LCD_WriteDat(32)  ' Space when blinking
+            Else
+                LCD_WriteDat(48 + B_100s)  ' '0' + digit
+            EndIf
+            
+            ' Display tens (blink if field 2 is active)
+            LCD_SetCursor(B_Row, B_Start + 2)
+            If B_Field = 2 And B_BlinkState = 1 Then
+                LCD_WriteDat(32)  ' Space when blinking
+            Else
+                LCD_WriteDat(48 + B_10s)
+            EndIf
+            
+            ' Display units (blink if field 3 is active)
+            LCD_SetCursor(B_Row, B_Start + 3)
+            If B_Field = 3 And B_BlinkState = 1 Then
+                LCD_WriteDat(32)  ' Space when blinking
+            Else
+                LCD_WriteDat(48 + B_Units)
+            EndIf
+        EndIf
         
-        LCD_SetCursor(B_Row, B_Start + 2)
-        LCD_WriteDat(48 + B_10s)
+        ' Check for long press using ISR button hold timer
+        GIE = 0
+        W_BtnHoldTime = W_BtnHoldMS
+        GIE = 1
         
-        LCD_SetCursor(B_Row, B_Start + 3)
-        LCD_WriteDat(48 + B_Units)
+        If W_BtnHoldTime >= 750 And _BTN = 0 Then
+            ' Long press detected while button still held
+            P_Beeps(3)
+            I_Val = I_OrigVal  ' Restore original value
+            
+            ' Wait for button release to prevent re-entry
+            While _BTN = 0
+                DelayMS 10
+            Wend
+            
+            ' Additional debounce delay
+            DelayMS 100
+            
+            ' Clear any pending button events from ISR
+            B_KeyEvent = 0
+            
+            Result = I_OrigVal
+            HRSOut "Exit on long press",13
+            ExitProc
+        EndIf
         
         P_ReadEnc()
         If B_EncDelta <> 0 Then
             P_Beeps(1)  ' Beep on any encoder movement
+            B_ForceUpdate = 1  ' Force display update after encoder change
+            
             Select B_Field
                 Case 0  ' Sign field
                     If B_Sign = 0 Then
@@ -1707,8 +1781,12 @@ Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
         Select P_GetKeyEvt()
             Case 1
                 P_Beeps(1)
+                B_ForceUpdate = 1  ' Force display update after button press
                 If B_Field < 3 Then
                     Inc B_Field
+                    ' Reset blink state when moving to new field
+                    B_BlinkState = 0
+                    L_LastBlink = L_Millis
                 Else
                     ' Commit the value
                     W_Composite = (B_100s * 100) + (B_10s * 10) + B_Units
@@ -1723,16 +1801,12 @@ Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
                     If I_Val < -500 Then I_Val = -500
                     
                     P_Beeps(2)
-                    Result = 1
+                    Result = I_Val
                     ExitProc
                 EndIf
         EndSelect
         
-        ' Note: P_UserAbort() commented out for now
-        ' If P_UserAbort() = 1 Then
-        '     Result = 0
-        '     ExitProc
-        ' EndIf
+        DelayMS 1
     Wend
 EndProc
 '=====================================================================
@@ -2279,6 +2353,7 @@ Proc V_InputMenu(B_In As Byte), Byte
                             EndSelect
                             P_SaveInputConfig(B_In)
                         EndIf
+                        HRSOut "Redraw the screen",13
                         Set b_ScrDirty
 
                     Case F_SCALE20
