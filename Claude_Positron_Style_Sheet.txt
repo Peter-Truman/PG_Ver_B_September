@@ -115,6 +115,31 @@ For Variable = Start To End
 Next Variable
 ```
 
+## CODE DELIVERY GUIDELINES
+
+### 1. Single Procedure Changes
+When making changes to **ONE specific procedure only**:
+- Deliver **only that procedure** as a standalone code block
+- Include clear instructions: "**Replace the existing `P_ProcedureName` procedure in Section_X with this version**"
+- Specify the exact section number where the procedure belongs
+
+### 2. Multiple Procedure or Section Changes
+When changes affect **multiple procedures or structural changes**:
+- Deliver the **complete section** containing all changes
+- Mark sections clearly with: `'--------------------------------XXXXXXXXX-------------------------------` and `Section_N:`
+- Include clear instructions: "**Replace the entire Section_X with this updated version**"
+
+### 3. Section Identification Requirements
+- All sections MUST be clearly labeled with section numbers
+- Use format: `Section_N:` where N is the section number
+- Section boundaries must be clearly marked with the X-line separators
+
+### 4. Placement Instructions
+Always specify:
+- **What to replace**: "Replace procedure X" or "Replace Section Y"
+- **Where to place it**: "in Section_N" or "this replaces the entire Section_N" 
+- **Exact procedure name**: Use backticks around procedure names like `P_EditS3Stand`
+
 ## EEPROM System Architecture
 
 ### 1. Block Structure
@@ -372,8 +397,9 @@ This style guide represents the evolved patterns from the IRRISYS project throug
 - ISR timing integration for UI feedback
 - Proper button event management
 - Efficient display update patterns
+- **Clear code delivery and placement guidelines**
 
-**Last Updated:** December 2025
-**Architecture:** Complete EEPROM + Menu System + Advanced UI
-**Status:** Production-ready, syntax-compliant
+**Last Updated:** December 2025  
+**Architecture:** Complete EEPROM + Menu System + Advanced UI  
+**Status:** Production-ready, syntax-compliant  
 **Project:** IRRISYS HMI System

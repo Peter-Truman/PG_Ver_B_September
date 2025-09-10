@@ -656,10 +656,11 @@ Proc P_S2W(I_Val As SWord), Word
 EndProc
 
 '--------------------------------XXXXXXXXX-------------------------------
+'--------------------------------XXXXXXXXX-------------------------------
 Section_3:
 '------------------------------------------------------------------------------
 '=====================================================================
-' EEPROM BLOCK OPERATIONS AND VALIDATION
+' EEPROM BLOCK OPERATIONS AND VALIDATION WITH DEBUG LOGGING
 '=====================================================================
 
 '------------------------ CHECKSUM OPERATIONS ------------------------
@@ -711,69 +712,68 @@ EndProc
 
 '------------------------ BLOCK WRITE AND COPY OPERATIONS -----------
 Proc P_EE_WriteBlk(W_BlockAddr As Word), Byte
-    Dim B_Checksum   As Byte
-    Dim B_Status     As Byte
-    Dim W_WriteCount As Word
-    Dim W_BUP_Add As Word
+    Dim B_Checksum As Byte
+    Dim B_Status   As Byte
     
-    ' Check write cycle limit
-    W_WriteCount = P_EE_SafeReadW(W_BlockAddr + EE_IN_WRITE_CNT)
-    If W_WriteCount >= EE_MAX_WRITES Then
-        Result = EE_ERR_WEAR
-        ExitProc
-    EndIf
-    
-    ' Create backup if threshold reached
-    If W_WriteCount >= EE_BkUp_Thresh Then
-        W_BUP_Add = EE_BACKUP_START + W_BlockAddr
-        P_EE_CopyBlk(W_BlockAddr, W_BUP_Add)
-        P_SetFlag(B_EE_Flags, EE_FLAG_BACKUP)
-    EndIf
+    HRSOut "DEBUG: P_EE_WriteBlk entry - BlockAddr=", Dec W_BlockAddr,13
     
     ' Write magic and version
+    HRSOut "DEBUG: Writing magic byte",13
     B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_MAGIC, EE_MAGIC_BYTE)
     If B_Status <> EE_OK Then
+        HRSOut "DEBUG: Magic write failed, status=", Dec B_Status,13
         Result = B_Status
         ExitProc
     EndIf
     
+    HRSOut "DEBUG: Writing version byte",13
     B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_VERSION, EE_VERSION)
     If B_Status <> EE_OK Then
+        HRSOut "DEBUG: Version write failed, status=", Dec B_Status,13
         Result = B_Status
         ExitProc
     EndIf
     
-    ' Increment and write cycle counter
-    Inc W_WriteCount
-    B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_WRITE_CNT, W_WriteCount)
-    If B_Status <> EE_OK Then
-        Result = B_Status
-        ExitProc
-    EndIf
-    
-    ' Calculate and write checksum
+    ' Calculate and write checksum (exclude checksum byte itself)
+    HRSOut "DEBUG: Calculating checksum",13
     B_Checksum = P_EE_CalcChkSum(W_BlockAddr, EE_BLOCK_SIZE - 1)
+    HRSOut "DEBUG: Calculated checksum=", Hex2 B_Checksum,13
+    
     B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_CHECKSUM, B_Checksum)
+    If B_Status <> EE_OK Then
+        HRSOut "DEBUG: Checksum write failed, status=", Dec B_Status,13
+    Else
+        HRSOut "DEBUG: Block finalization successful",13
+    EndIf
     
     Result = B_Status
 EndProc
+
 
 Proc P_EE_CopyBlk(W_SrcAddr As Word, W_DstAddr As Word), Byte
     Dim B_I      As Byte
     Dim B_Val    As Byte
     Dim B_Status As Byte
     
+    HRSOut "DEBUG: P_EE_CopyBlk - Src=", Dec W_SrcAddr, " Dst=", Dec W_DstAddr,13
+    
     For B_I = 0 To EE_BLOCK_SIZE - 1
         B_Val = ERead W_SrcAddr + B_I
         B_Status = P_EE_SafeWriteB(W_DstAddr + B_I, B_Val)
         If B_Status <> EE_OK Then
+            HRSOut "DEBUG: Copy failed at byte ", Dec B_I, " status=", Dec B_Status,13
             Result = B_Status
             ExitProc
         EndIf
     Next B_I
     
+    HRSOut "DEBUG: Block copy completed successfully",13
     Result = EE_OK
 EndProc
+
+'--------------------------------XXXXXXXXX-------------------------------
+
+
 
 '--------------------------------XXXXXXXXX-------------------------------
 Section_4:
@@ -1032,10 +1032,11 @@ Proc P_GetKeyEvt(), Byte
     B_KeyEvent = 0
 EndProc
 '--------------------------------XXXXXXXXX-------------------------------
+'--------------------------------XXXXXXXXX-------------------------------
 Section_6:
 '------------------------------------------------------------------------------
 '=====================================================================
-' CONFIGURATION LOAD/SAVE OPERATIONS
+' CONFIGURATION LOAD/SAVE OPERATIONS WITH DEBUG LOGGING
 '=====================================================================
 
 '------------------------ SYSTEM CONFIGURATION ----------------------
@@ -1090,19 +1091,22 @@ Proc P_SaveSysCfg(), Byte
     
     W_BlockAddr = EE_SYSTEM_BLOCK
     
-    ' Write configuration data
+    ' Write configuration data with logging
+    P_EE_LogSaveW("W_UI_TimeoutS", W_UI_TimeoutS)
     B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_SYS_TIMEOUT, W_UI_TimeoutS)
     If B_Status <> EE_OK Then
         Result = B_Status
         ExitProc
     EndIf
     
+    P_EE_LogSaveW("W_UI_PulseMs", W_UI_PulseMs)
     B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_SYS_PULSE, W_UI_PulseMs)
     If B_Status <> EE_OK Then
         Result = B_Status
         ExitProc
     EndIf
     
+    P_EE_LogSaveB("B_EE_Flags", B_EE_Flags)
     B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_SYS_FLAGS, B_EE_Flags)
     If B_Status <> EE_OK Then
         Result = B_Status
@@ -1194,125 +1198,172 @@ Proc P_SaveInCfg(B_InputNum As Byte), Byte
     
     W_BlockAddr = EE_INPUT1_BLOCK + ((B_InputNum - 1) * EE_BLOCK_SIZE)
     
-    ' Write configuration data based on input number
+    HRSOut "EEPROM SAVE: Input ", Dec B_InputNum, " Configuration",13
+    
+    ' Write configuration data based on input number with logging
     Select B_InputNum
         Case 1
+            P_EE_LogSaveB("B_I1_Enabled", B_I1_Enabled)
             B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_ENABLED, B_I1_Enabled)
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I1_SensorT", B_I1_SensorT)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_SENSOR_T, B_I1_SensorT)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I1_FlowMode", B_I1_FlowMode)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_FLOW_MODE, B_I1_FlowMode)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSave("W_I1_Scale4", P_W2S(W_I1_Scale4))
                 B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_SCALE4, W_I1_Scale4)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSave("W_I1_Scale20", P_W2S(W_I1_Scale20))
                 B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_SCALE20, W_I1_Scale20)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveW("W_I1_BP_High", W_I1_BP_High)
                 B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_BP_HIGH, W_I1_BP_High)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveW("W_I1_BP_PLP", W_I1_BP_PLP)
                 B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_BP_PLP, W_I1_BP_PLP)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveW("W_I1_BP_SLP", W_I1_BP_SLP)
                 B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_BP_SLP, W_I1_BP_SLP)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I1_RlyHigh", B_I1_RlyHigh)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_RLY_HIGH, B_I1_RlyHigh)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I1_RlyPLP", B_I1_RlyPLP)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_RLY_PLP, B_I1_RlyPLP)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I1_RlySLP", B_I1_RlySLP)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_RLY_SLP, B_I1_RlySLP)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I1_Display", B_I1_Display)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_DISPLAY, B_I1_Display)
             EndIf
             
         Case 2
+            P_EE_LogSaveB("B_I2_Enabled", B_I2_Enabled)
             B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_ENABLED, B_I2_Enabled)
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I2_SensorT", B_I2_SensorT)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_SENSOR_T, B_I2_SensorT)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I2_FlowMode", B_I2_FlowMode)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_FLOW_MODE, B_I2_FlowMode)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSave("W_I2_Scale4", P_W2S(W_I2_Scale4))
                 B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_SCALE4, W_I2_Scale4)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSave("W_I2_Scale20", P_W2S(W_I2_Scale20))
                 B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_SCALE20, W_I2_Scale20)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveW("W_I2_BP_High", W_I2_BP_High)
                 B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_BP_HIGH, W_I2_BP_High)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveW("W_I2_BP_PLP", W_I2_BP_PLP)
                 B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_BP_PLP, W_I2_BP_PLP)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveW("W_I2_BP_SLP", W_I2_BP_SLP)
                 B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_BP_SLP, W_I2_BP_SLP)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I2_RlyHigh", B_I2_RlyHigh)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_RLY_HIGH, B_I2_RlyHigh)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I2_RlyPLP", B_I2_RlyPLP)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_RLY_PLP, B_I2_RlyPLP)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I2_RlySLP", B_I2_RlySLP)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_RLY_SLP, B_I2_RlySLP)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I2_Display", B_I2_Display)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_DISPLAY, B_I2_Display)
             EndIf
             
         Case 3
+            P_EE_LogSaveB("B_I3_Enabled", B_I3_Enabled)
             B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_ENABLED, B_I3_Enabled)
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I3_SensorT", B_I3_SensorT)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_SENSOR_T, B_I3_SensorT)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I3_FlowMode", B_I3_FlowMode)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_FLOW_MODE, B_I3_FlowMode)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSave("W_I3_Scale4", P_W2S(W_I3_Scale4))
                 B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_SCALE4, W_I3_Scale4)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSave("W_I3_Scale20", P_W2S(W_I3_Scale20))
                 B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_SCALE20, W_I3_Scale20)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveW("W_I3_BP_High", W_I3_BP_High)
                 B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_BP_HIGH, W_I3_BP_High)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveW("W_I3_BP_PLP", W_I3_BP_PLP)
                 B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_BP_PLP, W_I3_BP_PLP)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveW("W_I3_BP_SLP", W_I3_BP_SLP)
                 B_Status = P_EE_SafeWriteW(W_BlockAddr + EE_IN_BP_SLP, W_I3_BP_SLP)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I3_RlyHigh", B_I3_RlyHigh)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_RLY_HIGH, B_I3_RlyHigh)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I3_RlyPLP", B_I3_RlyPLP)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_RLY_PLP, B_I3_RlyPLP)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I3_RlySLP", B_I3_RlySLP)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_RLY_SLP, B_I3_RlySLP)
             EndIf
             If B_Status = EE_OK Then
+                P_EE_LogSaveB("B_I3_Display", B_I3_Display)
                 B_Status = P_EE_SafeWriteB(W_BlockAddr + EE_IN_DISPLAY, B_I3_Display)
             EndIf
     EndSelect
     
     If B_Status = EE_OK Then
         B_Status = P_EE_WriteBlk(W_BlockAddr)
+        If B_Status = EE_OK Then
+            HRSOut "EEPROM SAVE: Input ", Dec B_InputNum, " block finalized successfully",13
+        Else
+            HRSOut "EEPROM ERROR: Input ", Dec B_InputNum, " block finalization failed",13
+        EndIf
+    Else
+        HRSOut "EEPROM ERROR: Input ", Dec B_InputNum, " configuration save failed",13
     EndIf
     
     B_EE_Status = B_Status
     Result = B_Status
 EndProc
 
+'--------------------------------XXXXXXXXX-------------------------------
+'--------------------------------XXXXXXXXX-------------------------------
 '--------------------------------XXXXXXXXX-------------------------------
 Section_7:
 '------------------------------------------------------------------------------
@@ -1494,6 +1545,81 @@ Proc P_I1SyncSave()
     B_I1_FlowMode = B_Mode
     W_I1_BP_SLP = W_I1_BP_Low
     B_I1_RlySLP = B_I1_RlyLow
+EndProc
+
+'=====================================================================
+' EEPROM DEBUG AND MONITORING FUNCTIONS
+'=====================================================================
+
+'------------------------ STARTUP CONFIGURATION DUMP ----------------
+Proc P_EE_DumpAll()
+    HRSOut "=== EEPROM CONFIG DUMP ===",13
+    
+    ' System Configuration
+    HRSOut "SYSTEM CONFIG:",13
+    HRSOut "  W_UI_TimeoutS = ", Dec W_UI_TimeoutS, " seconds",13
+    HRSOut "  W_UI_PulseMs  = ", Dec W_UI_PulseMs, " ms",13
+    HRSOut "  B_EE_Flags    = $", Hex2 B_EE_Flags,13
+    
+    ' Input 1 Configuration
+    HRSOut "INPUT 1 CONFIG:",13
+    HRSOut "  B_I1_Enabled  = ", Dec B_I1_Enabled,13
+    HRSOut "  B_I1_SensorT  = ", Dec B_I1_SensorT,13
+    HRSOut "  B_I1_FlowMode = ", Dec B_I1_FlowMode,13
+    HRSOut "  W_I1_Scale4   = ", SDec W_I1_Scale4,13
+    HRSOut "  W_I1_Scale20  = ", SDec W_I1_Scale20,13
+    HRSOut "  W_I1_BP_High  = ", Dec W_I1_BP_High, " sec",13
+    HRSOut "  W_I1_BP_PLP   = ", Dec W_I1_BP_PLP, " sec",13
+    HRSOut "  W_I1_BP_SLP   = ", Dec W_I1_BP_SLP, " sec",13
+    HRSOut "  B_I1_RlyHigh  = ", Dec B_I1_RlyHigh,13
+    HRSOut "  B_I1_RlyPLP   = ", Dec B_I1_RlyPLP,13
+    HRSOut "  B_I1_RlySLP   = ", Dec B_I1_RlySLP,13
+    HRSOut "  B_I1_Display  = ", Dec B_I1_Display,13
+    
+    ' Input 2 Configuration
+    HRSOut "INPUT 2 CONFIG:",13
+    HRSOut "  B_I2_Enabled  = ", Dec B_I2_Enabled,13
+    HRSOut "  B_I2_SensorT  = ", Dec B_I2_SensorT,13
+    HRSOut "  B_I2_FlowMode = ", Dec B_I2_FlowMode,13
+    HRSOut "  W_I2_Scale4   = ", SDec W_I2_Scale4,13
+    HRSOut "  W_I2_Scale20  = ", SDec W_I2_Scale20,13
+    HRSOut "  W_I2_BP_High  = ", Dec W_I2_BP_High, " sec",13
+    HRSOut "  W_I2_BP_PLP   = ", Dec W_I2_BP_PLP, " sec",13
+    HRSOut "  W_I2_BP_SLP   = ", Dec W_I2_BP_SLP, " sec",13
+    HRSOut "  B_I2_RlyHigh  = ", Dec B_I2_RlyHigh,13
+    HRSOut "  B_I2_RlyPLP   = ", Dec B_I2_RlyPLP,13
+    HRSOut "  B_I2_RlySLP   = ", Dec B_I2_RlySLP,13
+    HRSOut "  B_I2_Display  = ", Dec B_I2_Display,13
+    
+    ' Input 3 Configuration
+    HRSOut "INPUT 3 CONFIG:",13
+    HRSOut "  B_I3_Enabled  = ", Dec B_I3_Enabled,13
+    HRSOut "  B_I3_SensorT  = ", Dec B_I3_SensorT,13
+    HRSOut "  B_I3_FlowMode = ", Dec B_I3_FlowMode,13
+    HRSOut "  W_I3_Scale4   = ", SDec W_I3_Scale4,13
+    HRSOut "  W_I3_Scale20  = ", SDec W_I3_Scale20,13
+    HRSOut "  W_I3_BP_High  = ", Dec W_I3_BP_High, " sec",13
+    HRSOut "  W_I3_BP_PLP   = ", Dec W_I3_BP_PLP, " sec",13
+    HRSOut "  W_I3_BP_SLP   = ", Dec W_I3_BP_SLP, " sec",13
+    HRSOut "  B_I3_RlyHigh  = ", Dec B_I3_RlyHigh,13
+    HRSOut "  B_I3_RlyPLP   = ", Dec B_I3_RlyPLP,13
+    HRSOut "  B_I3_RlySLP   = ", Dec B_I3_RlySLP,13
+    HRSOut "  B_I3_Display  = ", Dec B_I3_Display,13
+    
+    HRSOut "=== END CONFIG DUMP ===",13,13
+EndProc
+
+'------------------------ SAVE OPERATION LOGGING ---------------------
+Proc P_EE_LogSave(S_VarName As String, I_Value As SWord)
+    HRSOut "EEPROM SAVE: ", S_VarName, " = ", SDec I_Value,13
+EndProc
+
+Proc P_EE_LogSaveB(S_VarName As String, B_Value As Byte)
+    HRSOut "EEPROM SAVE: ", S_VarName, " = ", Dec B_Value,13
+EndProc
+
+Proc P_EE_LogSaveW(S_VarName As String, W_Value As Word)
+    HRSOut "EEPROM SAVE: ", S_VarName, " = ", Dec W_Value,13
 EndProc
 
 '--------------------------------XXXXXXXXX-------------------------------
@@ -1696,7 +1822,9 @@ Section_9:
 '=====================================================================
 
 '------------------------ STANDALONE 3-DIGIT SIGNED EDITOR (CORRECTED) -----
-Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
+'------------------------ STANDALONE 3-DIGIT SIGNED EDITOR (CORRECTED) -----
+'------------------------ STANDALONE 3-DIGIT SIGNED EDITOR (CORRECTED) -----
+Proc P_EditS3Stand(I_Val As SWord, B_Row As Byte), SWord
     Dim W_Temp      As Word
     Dim B_100s      As Byte
     Dim B_10s       As Byte
@@ -1720,25 +1848,32 @@ Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
     ' Store original value for potential restore
     I_OrigVal = I_Val
     
-    ' Extract current value
+    ' DEBUG: Show what we're starting with
+    HRSOut "DEBUG: P_EditS3Stand entry - I_Val=", SDec I_Val,13
+    
+    ' Extract current value and initialize all variables
     If I_Val < 0 Then
         B_Sign = 1
-        W_Temp = 0 - I_Val
+        W_Temp = 0 - I_Val          ' Convert to positive for digit extraction
     Else
         B_Sign = 0
-        W_Temp = I_Val
+        W_Temp = I_Val              ' Already positive
     EndIf
     
-    ' Clamp to limits
+    ' Clamp to limits before digit extraction
     If W_Temp > 500 Then W_Temp = 500
     
-    ' Extract digits
-    B_100s = W_Temp / 100
-    W_Temp = W_Temp // 100
-    B_10s = W_Temp / 10
-    B_Units = W_Temp // 10
+    ' Extract digits from the actual input value
+    B_100s = W_Temp / 100           ' Extract hundreds digit
+    W_Temp = W_Temp // 100          ' Get remainder after hundreds
+    B_10s = W_Temp / 10             ' Extract tens digit  
+    B_Units = W_Temp // 10          ' Extract units digit
     
-    B_Field = 0
+    ' DEBUG: Show extracted digits
+    HRSOut "DEBUG: Extracted - Sign=", Dec B_Sign, " 100s=", Dec B_100s, " 10s=", Dec B_10s, " units=", Dec B_Units,13
+    
+    ' Initialize editor state
+    B_Field = 0                     ' Start at sign field
     L_LastBlink = L_Millis
     B_BlinkState = 0
     B_ForceUpdate = 1
@@ -1815,7 +1950,9 @@ Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
         If W_BtnHoldTime >= 750 And _BTN = 0 Then
             ' Long press detected while button still held
             P_Beeps(3)
-            I_Val = I_OrigVal  ' Restore original value
+            
+            ' DEBUG: Show restored value
+            HRSOut "DEBUG: Long press - restoring I_OrigVal=", SDec I_OrigVal,13
             
             ' Wait for button release to prevent re-entry
             While _BTN = 0
@@ -1948,6 +2085,9 @@ Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
                     If I_Val > 500 Then I_Val = 500
                     If I_Val < -500 Then I_Val = -500
                     
+                    ' DEBUG: Show final value
+                    HRSOut "DEBUG: Committing I_Val=", SDec I_Val,13
+                    
                     P_Beeps(2)
                     Result = I_Val
                     ExitProc
@@ -1958,10 +2098,12 @@ Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
     Wend
 EndProc
 '--------------------------------XXXXXXXXX-------------------------------
+'--------------------------------XXXXXXXXX-------------------------------
+'--------------------------------XXXXXXXXX-------------------------------
 Section_10:
 '------------------------------------------------------------------------------
 '=====================================================================
-' GENERIC INPUT MENU SYSTEM
+' GENERIC INPUT MENU SYSTEM WITH CORRECTED PARAMETER PASSING
 '=====================================================================
 
 '------------------------ GENERIC INPUT MENU -------------------------
@@ -1979,7 +2121,10 @@ Proc V_InputMenu(B_In As Byte), Byte
     Dim B_RlySLP   As Byte
     Dim B_Display  As Byte
     
-    ' Load current values based on input number
+    ' DEBUG: Show input number
+    HRSOut "DEBUG: V_InputMenu entry - Input ", Dec B_In,13
+    
+    ' Initialize ALL local variables from globals based on input number
     Select B_In
         Case 1
             B_Enabled = B_I1_Enabled
@@ -2018,6 +2163,9 @@ Proc V_InputMenu(B_In As Byte), Byte
             B_RlySLP = B_I3_RlySLP
             B_Display = B_I3_Display
     EndSelect
+    
+    ' DEBUG: Show loaded values
+    HRSOut "DEBUG: Loaded W_Scale4=", Dec W_Scale4, " W_Scale20=", Dec W_Scale20,13
     
     Dim B_Sel     As Byte
     Dim B_Top     As Byte
@@ -2403,25 +2551,44 @@ Proc V_InputMenu(B_In As Byte), Byte
 
                     Case F_SCALE4
                         Dim I_Work As SWord
+                        Dim I_Original As SWord
                         I_Work = P_W2S(W_Scale4)
-                        If P_EditS3Stand(I_Work, B_RowSel) = 1 Then
+                        I_Original = I_Work
+                        HRSOut "DEBUG: Before edit - W_Scale4=", Dec W_Scale4, " I_Work=", SDec I_Work,13
+                        
+                        I_Work = P_EditS3Stand(I_Work, B_RowSel)
+                        HRSOut "DEBUG: Edit returned - I_Work=", SDec I_Work,13
+                        
+                        If I_Work <> I_Original Then
                             W_Scale4 = P_S2W(I_Work)
+                            HRSOut "DEBUG: After conversion - W_Scale4=", Dec W_Scale4,13
                             Select B_In
                                 Case 1
+                                    HRSOut "DEBUG: Saving to W_I1_Scale4 - old=", Dec W_I1_Scale4, " new=", Dec W_Scale4,13
                                     W_I1_Scale4 = W_Scale4
                                 Case 2
                                     W_I2_Scale4 = W_Scale4
                                 Case 3
                                     W_I3_Scale4 = W_Scale4
                             EndSelect
-                            P_SaveInCfg(B_In)
+                            
+                            HRSOut "DEBUG: Calling P_SaveInCfg(",Dec B_In,")",13
+                            B_Ed = P_SaveInCfg(B_In)
+                            HRSOut "DEBUG: P_SaveInCfg returned status=", Dec B_Ed,13
+                        Else
+                            HRSOut "DEBUG: No change - skipping save",13
                         EndIf
                         Set b_ScrDirty
 
                     Case F_SCALE20
                         Dim I_Work2 As SWord
+                        Dim I_Original2 As SWord
                         I_Work2 = P_W2S(W_Scale20)
-                        If P_EditS3Stand(I_Work2, B_RowSel) = 1 Then
+                        I_Original2 = I_Work2
+                        
+                        I_Work2 = P_EditS3Stand(I_Work2, B_RowSel)
+                        
+                        If I_Work2 <> I_Original2 Then
                             W_Scale20 = P_S2W(I_Work2)
                             Select B_In
                                 Case 1
@@ -2906,6 +3073,9 @@ Main:
     
     ' Load configuration from EEPROM (with migration/backup recovery)
     P_LoadConfig()
+    P_EE_DumpAll()  ' Add this line for startup debug dump
+
+
     
     ' Sync Input1 bit-packed data
     P_I1SyncLoad()
