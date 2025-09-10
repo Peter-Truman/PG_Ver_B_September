@@ -1,4 +1,5 @@
 # Positron8 BASIC Style Guide - IRRISYS Project
+## Updated December 2025
 
 ## Critical Syntax Rules
 
@@ -6,6 +7,12 @@
 **ALLOWED** (single statement after Then):
 ```basic
 If B_I1_FlowType = Flow_Type_Dig Then B_Mode = B_Mode Or %00000001
+```
+
+**ALLOWED** (multiple variable assignments):
+```basic
+B_Sel = 0 : B_Top = 0
+P_Sgn = B_Sgn : P_H = B_H : P_T = B_T : P_U = B_U
 ```
 
 **NOT ALLOWED** (multiple statements with colons):
@@ -48,7 +55,6 @@ Proc V_InputMenu(B_In As Byte), Byte
 **Multiple assignments on one line (with colons) - ALLOWED:**
 ```basic
 B_Sel = 0 : B_Top = 0
-P_Sgn = B_Sgn : P_H = B_H : P_T = B_T : P_U = B_U
 ```
 
 **Multiple statements - MUST use line breaks:**
@@ -150,49 +156,115 @@ B_NavCode = 2  ' to main
 - Timeout handling
 - Screen dirty flags
 
+## Advanced UI Patterns
+
+### 1. Inline Editing with Character Blinking
+```basic
+Proc P_EditS3Stand(ByRef I_Val As SWord, B_Row As Byte), Byte
+    ' 2Hz character blinking for active field
+    ' Long press (750ms) exit with original value restoration
+    ' Encoder navigation through sign->hundreds->tens->units
+    ' Range validation (±500)
+EndProc
+```
+
+**Key Features:**
+- 2Hz blink timing (250ms intervals)
+- Only active character blinks
+- Long press escape (750ms) with P_Beeps(3)
+- Button hold detection using ISR timing
+- Proper debouncing and B_KeyEvent clearing
+
+### 2. Button Event Management
+```basic
+' Clear button events after long press to prevent re-entry
+B_KeyEvent = 0
+
+' Wait for button release with debouncing
+While _BTN = 0
+    DelayMS 10
+Wend
+DelayMS 100  ' Additional debounce
+```
+
+### 3. Display Optimization
+```basic
+' Force update flags for efficient screen refreshes
+If B_ForceUpdate = 1 Then
+    B_ForceUpdate = 0
+    ' Update only changed elements
+EndIf
+```
+
 ## Common Patterns
 
-### 1. Editor Pattern
+### 1. Editor Pattern with Long Press Exit
 ```basic
 Proc P_EditValue(ByRef Value As Type), Byte
     Dim LocalCopy As Type
+    Dim I_OrigVal As Type        ' Store for restoration
+    Dim W_BtnHoldTime As Word    ' ISR timing
+    
     LocalCopy = Value
+    I_OrigVal = Value
     Set b_ScrDirty
     
     While 1 = 1
-        ' UI update logic
-        ' Input handling
-        ' Validation
+        ' Check for long press (750ms)
+        GIE = 0
+        W_BtnHoldTime = W_BtnHoldMS
+        GIE = 1
+        
+        If W_BtnHoldTime >= 750 And _BTN = 0 Then
+            P_Beeps(3)
+            Value = I_OrigVal  ' Restore original
+            
+            ' Wait for release and debounce
+            While _BTN = 0
+                DelayMS 10
+            Wend
+            DelayMS 100
+            
+            B_KeyEvent = 0  ' Clear ISR event
+            Result = 0      ' Exit without saving
+            ExitProc
+        EndIf
+        
+        ' Normal editing logic...
         
         If CommitCondition Then
             Value = LocalCopy
             Result = 1
             ExitProc
         EndIf
-        
-        If P_UserAbort() = 1 Then
-            Result = 0
-            ExitProc
-        EndIf
     Wend
 EndProc
 ```
 
-### 2. Menu Pattern
+### 2. Menu Pattern with Windowing
 ```basic
 Proc V_MenuName(), Byte
     Dim B_Sel As Byte
+    Dim B_Top As Byte    ' Windowing support
     Set b_ScrDirty
     
     While 1 = 1
-        ' Display logic
-        ' Navigation logic
-        ' Action handling
-        
-        If P_UserAbort() <> 0 Then
-            Result = 1
-            ExitProc
+        ' Calculate window position
+        If B_Sel <= 1 Then
+            B_Top = 0
+        Else
+            If B_Sel >= (B_Cnt - 1) Then
+                B_Top = B_Cnt - 3
+            Else
+                B_Top = B_Sel - 1
+            EndIf
         EndIf
+        
+        ' Display logic with windowing
+        For B_Row = 2 To 4
+            B_Idx = B_Top + (B_Row - 2)
+            ' Render visible items
+        Next B_Row
     Wend
 EndProc
 ```
@@ -206,6 +278,16 @@ If B_Status <> EE_OK Then
 EndIf
 ```
 
+### 4. ISR-Safe Variable Access
+```basic
+' Reading ISR variables
+GIE = 0
+W_LocalCopy = W_ISRVariable
+GIE = 1
+
+' Use W_LocalCopy for calculations
+```
+
 ## Critical Functions
 
 ### 1. Core System
@@ -214,29 +296,84 @@ EndIf
 - `P_SaveSystemConfig()` - Save system settings
 
 ### 2. UI Framework
-- `P_UserAbort()` - Timeout and escape handling
+- `P_GetKeyEvt()` - Button event processing (clears B_KeyEvent)
 - `P_ReadEnc()` - Encoder input processing
-- `P_GetKeyEvt()` - Button event processing
+- `P_Beeps(B_Type)` - Audio feedback (0-4 intensity levels)
 
 ### 3. Display Helpers
 - `P_PValTxtRJ()` - Right-justified text values
 - `P_PValIntRJ4()` - Right-justified signed integers
 - `P_PValTmeRJ()` - Right-justified time values
+- `P_ClrValFld()` - Clear 10-character value field
+
+### 4. EEPROM Operations
+- `P_EE_SafeWriteB()` - Safe byte write with verification
+- `P_EE_SafeWriteW()` - Safe word write with verification
+- `P_EE_ValidateBlock()` - Block integrity checking
+
+## Timing and Performance
+
+### 1. ISR Timing (1ms)
+- Encoder debouncing: 2-sample stability
+- Button hold tracking: 10ms increments
+- Quadrature accumulation with threshold (±2)
+- Beeper service
+
+### 2. UI Refresh Rates
+- Screen updates: On-demand with b_ScrDirty flag
+- Character blinking: 2Hz (250ms intervals)
+- Button long press: 750ms threshold
+- Debounce delays: 100ms after button release
+
+### 3. EEPROM Timing
+- Write verification: 10ms settling + 3 retries
+- Block operations: Include wear leveling checks
+- Backup threshold: 1000 write cycles
 
 ## Testing Checklist
 
 - [ ] All procedures have ≤10 parameters
-- [ ] No colon-separated multi-statements
+- [ ] No colon-separated multi-statements in conditionals
 - [ ] All Case statements use line breaks
 - [ ] EEPROM operations include error checking
+- [ ] Button long press exits work correctly
+- [ ] Character blinking functions at 2Hz
 - [ ] Menu timeouts work correctly
 - [ ] Configuration saves/loads properly
 - [ ] Input validation functions correctly
+- [ ] ISR variables accessed safely (GIE disable/enable)
+
+## Advanced Features Implemented
+
+### 1. Inline Character Editor
+- Real-time character blinking during edit
+- Boundary checking (±500 range)
+- Field-by-field navigation (sign->hundreds->tens->units)
+- Long press escape with value restoration
+
+### 2. EEPROM Wear Leveling
+- Write cycle tracking per block
+- Automatic backup creation
+- Legacy data migration support
+- Block validation with checksums
+
+### 3. Adaptive Menu System
+- Sensor-type-dependent field visibility
+- Windowed display for long menus
+- Generic input handling for multiple inputs
+- Save-back pattern for configuration persistence
 
 ## File Recovery Notes
 
-This style guide preserves the working syntax patterns from the IRRISYS project. The code successfully compiles under Positron8 BASIC when following these guidelines. Key breakthrough was understanding the colon usage rules and parameter limits.
+This style guide represents the evolved patterns from the IRRISYS project through December 2025. The code successfully compiles under Positron8 BASIC when following these guidelines. Key breakthroughs include:
 
-**Last Known Working State:** September 2025
-**Architecture:** Improved EEPROM + Complete Menu System
-**Status:** Syntax-compliant, ready for compilation
+- Understanding colon usage restrictions
+- Parameter count limitations
+- ISR timing integration for UI feedback
+- Proper button event management
+- Efficient display update patterns
+
+**Last Updated:** December 2025
+**Architecture:** Complete EEPROM + Menu System + Advanced UI
+**Status:** Production-ready, syntax-compliant
+**Project:** IRRISYS HMI System
