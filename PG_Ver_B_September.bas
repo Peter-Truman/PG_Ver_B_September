@@ -1267,8 +1267,13 @@ Proc P_ReadBtn()
 EndProc
 
 Proc P_GetKeyEvt(), Byte
+    GIE = 0             ' Disable interrupts for critical section
     Result = B_KeyEvent
+    If B_KeyEvent <> 0 Then
+        HRSOut "DEBUG: P_GetKeyEvt returning: ", Dec B_KeyEvent, 13
+    EndIf
     B_KeyEvent = 0
+    GIE = 1             ' Re-enable interrupts
 EndProc
 '--------------------------------XXXXXXXXX-------------------------------
 Section_6:
@@ -1893,6 +1898,9 @@ Proc P_EditYNInline(B_Current As Byte, B_Row As Byte), Byte
     Dim B_Col         As Byte           ' Display column position
     Dim B_Start       As Byte           ' Starting position for value display
     
+''HRSOut "DEBUG: Entering [MenuName] - B_KeyEvent=", Dec B_KeyEvent, " B_Sel=", Dec B_Sel, 13
+B_KeyEvent = 0  ' Force clear
+
     ' Fixed display positioning to match your layout strategy
     B_Col = 11                          ' Column where value field starts
     B_Start = B_Col + 1 + (8 - 3)       ' Right-justified start for (Yes)/(No)
@@ -2017,6 +2025,11 @@ EndProc
 '------------------------ 3-OPTION ENUM EDITOR -----------------------
 Proc P_EditEnum3(ByRef B_Val As Byte), Byte
     Dim B_Cur As Byte
+
+'HRSOut "DEBUG: Entering [MenuName] - B_KeyEvent=", Dec B_KeyEvent, " B_Sel=", Dec B_Sel, 13
+B_KeyEvent = 0  ' Force clear
+
+
     B_Cur = B_Val
     Set b_ScrDirty
 
@@ -2064,6 +2077,11 @@ Proc P_EditMMSS(ByRef W_Val As Word), Byte
     B_Min = W_Val / 60
     B_Sec = W_Val // 60
     B_Field = 0
+
+'HRSOut "DEBUG: Entering [MenuName] - B_KeyEvent=", Dec B_KeyEvent, " B_Sel=", Dec B_Sel, 13
+B_KeyEvent = 0  ' Force clear
+
+
     Set b_ScrDirty
 
     While 1 = 1
@@ -2133,6 +2151,11 @@ Proc P_EditEnableInline(B_Current As Byte, B_Row As Byte), Byte
     Dim B_Col         As Byte           ' Display column position
     Dim B_Start       As Byte           ' Starting position for value display
     
+'HRSOut "DEBUG: Entering [MenuName] - B_KeyEvent=", Dec B_KeyEvent, " B_Sel=", Dec B_Sel, 13
+B_KeyEvent = 0  ' Force clear
+
+
+
     ' Fixed display positioning to match your layout strategy
     B_Col = 11                          ' Column where value field starts
     B_Start = B_Col + 1 + (8 - 8)       ' Right-justified start for (Disabled/Enabled)
@@ -2291,6 +2314,11 @@ Proc P_EditSensorInline(B_Current As Byte, B_Row As Byte), Byte
     Dim B_Col         As Byte           ' Display column position
     Dim B_Start       As Byte           ' Starting position for value display
     
+'HRSOut "DEBUG: Entering [MenuName] - B_KeyEvent=", Dec B_KeyEvent, " B_Sel=", Dec B_Sel, 13
+B_KeyEvent = 0  ' Force clear
+
+
+
     ' Fixed display positioning to match your layout strategy
     B_Col = 11                          ' Column where value field starts
     B_Start = B_Col + 1 + (8 - 8)       ' Right-justified start for (Pressure)
@@ -2451,6 +2479,10 @@ Proc P_EditTimeInline(W_Seconds As Word, B_Row As Byte), Word
     Dim B_Col         As Byte           ' Display column position
     Dim B_Start       As Byte           ' Starting position for time display
     
+'HRSOut "DEBUG: Entering [MenuName] - B_KeyEvent=", Dec B_KeyEvent, " B_Sel=", Dec B_Sel, 13
+B_KeyEvent = 0  ' Force clear
+
+
     ' Fixed display positioning to match your layout strategy
     B_Col = 11                          ' Column where value field starts
     B_Start = B_Col + 1 + (8 - 5)       ' Right-justified start for (MM:SS)
@@ -2684,6 +2716,10 @@ Proc P_EditS3Stand(I_Val As SWord, B_Row As Byte), SWord
     Dim B_BlinkState As Byte        ' 0=show char, 1=hide char
     Dim B_ForceUpdate As Byte       ' Force display update flag
     
+'HRSOut "DEBUG: Entering [MenuName] - B_KeyEvent=", Dec B_KeyEvent, " B_Sel=", Dec B_Sel, 13
+B_KeyEvent = 0  ' Force clear
+
+
     B_Col = 11  ' Column where the value field starts
     B_Start = B_Col + 1 + (8 - 4)  ' Right-justified start position for 4 chars
     
@@ -2959,6 +2995,10 @@ Proc P_EditEnum3Inline(B_Current As Byte, B_Row As Byte), Byte
     Dim B_Col         As Byte           ' Display column position
     Dim B_Start       As Byte           ' Starting position for value display
     
+'HRSOut "DEBUG: Entering [MenuName] - B_KeyEvent=", Dec B_KeyEvent, " B_Sel=", Dec B_Sel, 13
+B_KeyEvent = 0  ' Force clear
+
+
     ' Fixed display positioning to match your layout strategy
     B_Col = 11                          ' Column where value field starts
     B_Start = B_Col + 1 + (8 - 5)       ' Right-justified start for (Latch)
@@ -4020,14 +4060,14 @@ Proc V_SetupMenu(), Byte
 EndProc
 '------------------------ OPTIONS MENU -------------------------------
 Proc V_Options(), Byte
-    Dim B_Sel  As Byte
+    Dim B_SetupSel As Byte  ' Instead of B_Sel
     Dim B_Top  As Byte
     Dim B_Cnt  As Byte
     Dim B_Act  As Byte
     Dim B_Row  As Byte
     Dim B_Idx  As Byte
 
-    B_Cnt = 4 : B_Sel = 0 : B_Top = 0
+    B_Cnt = 4 : B_SetupSel = 0 : B_Top = 0
     b_ReInitLCD = 0
     Set b_ScrDirty
 
@@ -4037,23 +4077,23 @@ Proc V_Options(), Byte
             P_DrawTitle("OPTIONS             ")
             P_ClrLine(2) : P_ClrLine(3) : P_ClrLine(4)
 
-            If B_Sel <= 1 Then
+            If B_SetupSel <= 1 Then
                 B_Top = 0
             Else
-                If B_Sel >= B_Cnt - 1 Then
+                If B_SetupSel >= B_Cnt - 1 Then
                     If B_Cnt > 2 Then
                         B_Top = B_Cnt - 3
                     Else
                         B_Top = 0
                     EndIf
                 Else
-                    B_Top = B_Sel - 1
+                    B_Top = B_SetupSel - 1
                 EndIf
             EndIf
 
             For B_Row = 2 To 4
                 B_Idx = B_Top + B_Row - 2
-                If B_Idx = B_Sel Then
+                If B_Idx = B_SetupSel Then
                     B_Act = 1
                 Else
                     B_Act = 0
@@ -4078,9 +4118,9 @@ Proc V_Options(), Byte
         P_ReadEnc()
         If B_EncDelta <> 0 Then
             If B_EncDelta = 1 Then
-                If B_Sel < B_Cnt - 1 Then B_Sel = B_Sel + 1
+                If B_SetupSel < B_Cnt - 1 Then B_SetupSel = B_SetupSel + 1
             Else
-                If B_Sel > 0 Then B_Sel = B_Sel - 1
+                If B_SetupSel > 0 Then B_SetupSel = B_SetupSel - 1
             EndIf
             Set b_ScrDirty
         EndIf
@@ -4095,16 +4135,16 @@ Proc V_Options(), Byte
         Select P_GetKeyEvt()
             Case 1
                 P_Beeps(2)
-                Select B_Sel
+                Select B_SetupSel
                     Case 0  ' Main Menu
                         Result = 1
                         ExitProc
                         
                     Case 1  ' Setup Menu
-                        HRSOut "DEBUG: Before V_SetupMenu - B_Sel=", Dec B_Sel, 13
+                        HRSOut "DEBUG: Before V_SetupMenu - B_SetupSel=", Dec B_SetupSel, 13
                         Dim B_Res As Byte
                         B_Res = V_SetupMenu()
-                        HRSOut "DEBUG: After V_SetupMenu - B_Sel=", Dec B_Sel, 13
+                        HRSOut "DEBUG: After V_SetupMenu - B_SetupSel=", Dec B_SetupSel, 13
                         ' Handle return codes from submenu
                         If B_Res = 2 Then
                             ' Very long press - exit to main
