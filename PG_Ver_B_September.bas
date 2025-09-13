@@ -4313,6 +4313,7 @@ Main:
     HRSOut "  B_ButtonState = ", Dec B_ButtonState, 13
     HRSOut "  W_BtnHoldMS = ", Dec W_BtnHoldMS, 13
     HRSOut "  B_VLongPress = ", Dec B_VLongPress, 13
+    B_KeyEvent = 0          ' Clear any stale ISR events
 
 
 
@@ -4333,12 +4334,12 @@ Main:
     B_VLongPress = 0
     B_KeyEvent = 0
     GIE = 1  ' Re-enable interrupts
-
-
+    B_KeyEvent = 0          ' Clear any stale ISR events from startup
+    HRSOut "Startup check - B_KeyEvent=", Dec B_KeyEvent, 13
 
     ' Clear navigation and UI state
 
-B_NavCode = V_Options()
+    B_NavCode = 0
 
     'B_NavCode = 0
     b_Escape = 0
