@@ -2122,161 +2122,7 @@ EndProc
 ' Encoder cycles through sensor options, 2Hz blinking during edit
 '
 '=======================================================================
-Proc P_EditEnableInline(B_Current As Byte, B_Row As Byte), Byte
-    Dim B_Working     As Byte           ' Working value (0=Disabled, 1=Enabled)
-    Dim B_Modified    As Byte           ' Track if changes made
-    Dim L_LastBlink   As Dword          ' 2Hz blink timing control
-    Dim B_BlinkState  As Byte           ' Current blink visibility state
-    Dim B_ForceUpdate As Byte           ' Force display update flag
-    Dim B_Original    As Byte           ' Store original for restore on cancel
-    Dim W_BtnHoldTime As Word           ' Button hold timing from ISR
-    Dim B_Col         As Byte           ' Display column position
-    Dim B_Start       As Byte           ' Starting position for value display
-    
-    ' Fixed display positioning to match your layout strategy
-    B_Col = 11                          ' Column where value field starts
-    B_Start = B_Col + 1 + (8 - 8)       ' Right-justified start for (Disabled/Enabled)
-    
-    ' Store original value for potential restore
-    B_Original = B_Current
-    B_Working = B_Current
-    
-    ' Validate input range (0=Disabled, 1=Enabled)
-    If B_Working > 1 Then B_Working = 0
-    
-    ' Initialize editor state
-    B_Modified = 0                      ' No changes yet
-    L_LastBlink = L_Millis             ' Initialize blink timing
-    B_BlinkState = 0                   ' Start with value visible
-    B_ForceUpdate = 1                  ' Force initial display
-    
-    ' Entry beep to indicate edit mode started
-    P_Beeps(1)
-    
-    ' Set up parentheses for edit mode (matches your strategy)
-    P_ClrValFld(B_Row, B_Col)
-    LCD_SetCursor(B_Row, B_Start - 1)
-    LCD_WriteDat(40)                   ' '('
-    LCD_SetCursor(B_Row, B_Col + 9)
-    LCD_WriteDat(41)                   ' ')'
-    
-    While 1 = 1
-        ' Handle 2Hz blink timing (250ms intervals)
-        If (L_Millis - L_LastBlink) >= 250 Then
-            L_LastBlink = L_Millis
-            If B_BlinkState = 0 Then
-                B_BlinkState = 1
-            Else
-                B_BlinkState = 0
-            EndIf
-            B_ForceUpdate = 1
-        EndIf
-        
-        ' Update display when needed
-        If B_ForceUpdate = 1 Then
-            B_ForceUpdate = 0
-            
-            ' Clear the value field and reposition bracket based on text length
-            P_ClrValFld(B_Row, B_Col)
-            
-            ' Position bracket based on current value
-            If B_Working = 1 Then
-                ' "Enabled" (7 chars) - bracket at position B_Start
-                LCD_SetCursor(B_Row, B_Start)
-                LCD_WriteDat(40)                   ' '('
-                LCD_SetCursor(B_Row, B_Col + 9)
-                LCD_WriteDat(41)                   ' ')'
-            Else
-                ' "Disabled" (8 chars) - bracket at position B_Start - 1
-                LCD_SetCursor(B_Row, B_Start - 1)
-                LCD_WriteDat(40)                   ' '('
-                LCD_SetCursor(B_Row, B_Col + 9)
-                LCD_WriteDat(41)                   ' ')'
-            EndIf
-            
-            ' Display enable/disable text - blink entire text
-            LCD_SetCursor(B_Row, B_Start)
-            If B_BlinkState = 1 Then
-                ' Clear 8 characters during blink
-                LCD_WriteDat(32) : LCD_WriteDat(32) : LCD_WriteDat(32) : LCD_WriteDat(32)
-                LCD_WriteDat(32) : LCD_WriteDat(32) : LCD_WriteDat(32) : LCD_WriteDat(32)
-            Else
-                Select B_Working
-                    Case 0             ' "Disabled" (8 chars exactly)
-                        LCD_WriteDat(68)  : LCD_WriteDat(105) : LCD_WriteDat(115) : LCD_WriteDat(97)
-                        LCD_WriteDat(98)  : LCD_WriteDat(108) : LCD_WriteDat(101) : LCD_WriteDat(100)
-                    Case 1             ' " Enabled" (1 space + 7 chars)
-                        LCD_WriteDat(32)  : LCD_WriteDat(69)  : LCD_WriteDat(110) : LCD_WriteDat(97)
-                        LCD_WriteDat(98)  : LCD_WriteDat(108) : LCD_WriteDat(101) : LCD_WriteDat(100)
-                    Case Else          ' "   Error" (3 spaces + 5 chars)
-                        LCD_WriteDat(32)  : LCD_WriteDat(32)  : LCD_WriteDat(32)  : LCD_WriteDat(69)
-                        LCD_WriteDat(114) : LCD_WriteDat(114) : LCD_WriteDat(111) : LCD_WriteDat(114)
-                EndSelect
-            EndIf
-        EndIf
-        
-        ' Check for long press using ISR timing
-        GIE = 0
-        W_BtnHoldTime = W_BtnHoldMS
-        GIE = 1
-        
-        If W_BtnHoldTime >= BTN_LONG_MS And _BTN = 0 Then
-            ' Long press detected - cancel and restore original
-            P_Beeps(3)                 ' Error/cancel beep sequence
-            
-            ' Wait for button release
-            While _BTN = 0
-                DelayMS 10
-            Wend
-            
-            DelayMS 100                ' Debounce delay
-            B_KeyEvent = 0             ' Clear ISR event
-            
-            Result = B_Original        ' Return original value
-            ExitProc
-        EndIf
-        
-        ' Handle encoder input - toggles between Disabled/Enabled
-        P_ReadEnc()
-        If B_EncDelta <> 0 Then
-            P_Beeps(1)                 ' Click feedback
-            B_ForceUpdate = 1          ' Force display update
-            
-            ' Toggle between 0 (Disabled) and 1 (Enabled)
-            If B_Working = 0 Then
-                B_Working = 1
-            Else
-                B_Working = 0
-            EndIf
-            
-            ' Check if value differs from original
-            If B_Working <> B_Original Then
-                B_Modified = 1
-            Else
-                B_Modified = 0
-            EndIf
-        EndIf
-        
-        ' Handle button press - commit the value
-        P_ReadBtn()
-        Select P_GetKeyEvt()
-            Case 1                     ' Short press - commit
-                P_Beeps(2)             ' Success confirmation
-                HRSOut "Enable editor returning: ", Dec B_Working, 13
-                Result = B_Working
-                ExitProc
-        EndSelect
-        
-        ' Check for timeout
-        If (L_Millis - L_LastInput) > (W_UI_TimeoutS * 1000) Then
-            P_Beeps(3)                 ' Timeout error beep
-            Result = B_Original        ' Return original value
-            ExitProc
-        EndIf
-        
-        DelayMS 1                      ' Small delay for system stability
-    Wend
-EndProc
+
 Proc P_EditSensorInline(B_Current As Byte, B_Row As Byte), Byte
     Dim B_Working     As Byte           ' Working value (0=Pres, 1=Temp, 2=Flow)
     Dim B_Modified    As Byte           ' Track if changes made
@@ -3524,9 +3370,9 @@ Proc V_InputMenu(B_In As Byte), Byte
                         ExitProc
 
                     Case F_ENABLE
-                        HRSOut "DEBUG: F_ENABLE selected - calling P_EditEnableInline", 13
-                        B_NewValue = P_EditEnableInline(B_Enabled, B_RowSel)
-                        HRSOut "DEBUG: P_EditEnableInline returned ", Dec B_NewValue, 13
+                        HRSOut "DEBUG: F_ENABLE selected - calling P_EditYNInline", 13
+                        B_NewValue = P_EditYNInline(B_Enabled, B_RowSel)
+                        HRSOut "DEBUG: P_EditYNInline returned ", Dec B_NewValue, 13
                         If B_NewValue <> B_Enabled Then
                             B_Enabled = B_NewValue
                             HRSOut "DEBUG: Value changed - updating globals", 13
