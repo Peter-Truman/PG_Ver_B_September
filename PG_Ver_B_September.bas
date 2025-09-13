@@ -2176,23 +2176,8 @@ Proc P_EditEnableInline(B_Current As Byte, B_Row As Byte), Byte
         If B_ForceUpdate = 1 Then
             B_ForceUpdate = 0
             
-            ' Clear the value field and reposition bracket based on text length
+            ' Clear the value field first
             P_ClrValFld(B_Row, B_Col)
-            
-            ' Position bracket based on current value
-            If B_Working = 1 Then
-                ' "Enabled" (7 chars) - bracket at position B_Start
-                LCD_SetCursor(B_Row, B_Start)
-                LCD_WriteDat(40)                   ' '('
-                LCD_SetCursor(B_Row, B_Col + 9)
-                LCD_WriteDat(41)                   ' ')'
-            Else
-                ' "Disabled" (8 chars) - bracket at position B_Start - 1
-                LCD_SetCursor(B_Row, B_Start - 1)
-                LCD_WriteDat(40)                   ' '('
-                LCD_SetCursor(B_Row, B_Col + 9)
-                LCD_WriteDat(41)                   ' ')'
-            EndIf
             
             ' Display enable/disable text - blink entire text
             LCD_SetCursor(B_Row, B_Start)
@@ -2213,6 +2198,21 @@ Proc P_EditEnableInline(B_Current As Byte, B_Row As Byte), Byte
                         LCD_WriteDat(114) : LCD_WriteDat(114) : LCD_WriteDat(111) : LCD_WriteDat(114)
                 EndSelect
             EndIf
+            
+            ' Position the non-blinking opening bracket AFTER text display
+            If B_Working = 1 Then
+                ' "Enabled" (7 chars) - bracket goes at B_Start (before the space)
+                LCD_SetCursor(B_Row, B_Start)
+                LCD_WriteDat(40)                   ' '('
+            Else
+                ' "Disabled" (8 chars) - bracket goes at B_Start - 1 (before the 'D')
+                LCD_SetCursor(B_Row, B_Start - 1)
+                LCD_WriteDat(40)                   ' '('
+            EndIf
+            
+            ' Always show closing bracket (non-blinking)
+            LCD_SetCursor(B_Row, B_Col + 9)
+            LCD_WriteDat(41)                   ' ')'
         EndIf
         
         ' Check for long press using ISR timing
@@ -2233,7 +2233,7 @@ Proc P_EditEnableInline(B_Current As Byte, B_Row As Byte), Byte
             B_KeyEvent = 0             ' Clear ISR event
             
             Result = B_Original        ' Return original value
-            ExitProc
+            GoTo Exit_EnDis          ' Exit the procedure
         EndIf
         
         ' Handle encoder input - toggles between Disabled/Enabled
@@ -2264,19 +2264,22 @@ Proc P_EditEnableInline(B_Current As Byte, B_Row As Byte), Byte
                 P_Beeps(2)             ' Success confirmation
                 HRSOut "Enable editor returning: ", Dec B_Working, 13
                 Result = B_Working
-                ExitProc
+                GoTo Exit_EnDis  ' Exit the procedure
         EndSelect
         
         ' Check for timeout
         If (L_Millis - L_LastInput) > (W_UI_TimeoutS * 1000) Then
             P_Beeps(3)                 ' Timeout error beep
             Result = B_Original        ' Return original value
-            ExitProc
+            GoTo Exit_EnDis      ' Exit the procedure
         EndIf
         
         DelayMS 1                      ' Small delay for system stability
     Wend
+    
+Exit_EnDis:
 EndProc
+
 Proc P_EditSensorInline(B_Current As Byte, B_Row As Byte), Byte
     Dim B_Working     As Byte           ' Working value (0=Pres, 1=Temp, 2=Flow)
     Dim B_Modified    As Byte           ' Track if changes made
