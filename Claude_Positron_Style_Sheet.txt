@@ -1,103 +1,168 @@
-# IRRISYS PIC18F2525 Embedded System Coding Style Sheet
-
-## Language & Platform
-- **Language**: BASIC for PIC microcontroller
-- **Target**: PIC18F2525 embedded system with LCD menu interface
-- **Compiler**: Requires balanced control structures (If/EndIf, Select/EndSelect, While/Wend)
+# PIC18F2525 Positron BASIC Style Sheet
 
 ## Variable Naming Conventions
-- **B_**: Byte variables (8-bit)
-- **W_**: Word variables (16-bit) 
-- **L_**: Long/Dword variables (32-bit)
-- **S_**: Signed variables
 
-## Procedure & Function Standards
-- **Procedure naming**: `P_` prefix for procedures
-- **Function naming**: `F_` prefix for functions
-- **Inline editors**: `P_Edit[Type]Inline()` format
-- **Menu procedures**: `V_[MenuName]()` format
+### Prefixes by Type
+- `B_` - Byte variables (8-bit, 0-255)
+- `W_` - Word variables (16-bit, 0-65535) 
+- `L_` - Long variables (32-bit)
+- `S_` - Signed variables (negative values allowed)
+- `I_` - Signed word variables (SWord type)
 
-## Control Structure Requirements
-- **All If statements must have matching EndIf**
-- **All Select statements must have matching EndSelect**
-- **All While statements must have matching Wend**
-- **Missing EndIf/EndSelect causes compilation errors**
+### Variable Name Length Limits
+- **Byte variables**: No specific length limit observed
+- **Word variables**: No specific length limit observed  
+- **Dword variables**: **8 characters maximum** (e.g., `L_Blink` not `L_LastBlink`)
+- **All variables**: Keep reasonably short for readability
 
-## Loop Exit Conventions
-- **While/Wend loops**: Use `Goto [label]` to exit (not `Break` or `ExitProc`)
-- **Labels are global**: Use unique names like `Exit_[ShortName]` 
-- **Label length limit**: Keep labels short due to compiler limitations
-- **Example**: `Exit_EDEdit` instead of `ExitEnableEditor`
+### Examples
+```basic
+Dim B_Working     As Byte           ' Working value
+Dim W_Scale4      As Word           ' Scale for 4mA
+Dim L_Blink       As Dword          ' Blink timing (8 chars max)
+Dim I_Work        As SWord          ' Signed working value
+```
 
-## Critical Section Protection
-- **ISR synchronization**: Wrap critical sections with `GIE = 0` / `GIE = 1`
-- **Button event handling**: Protect `B_KeyEvent` read/clear operations
-- **Example**:
-  ```basic
-  GIE = 0
-  Result = B_KeyEvent
-  B_KeyEvent = 0
-  GIE = 1
-  ```
+## Procedure Naming
+- `P_` prefix for procedures
+- `V_` prefix for view/menu procedures
+- Descriptive names: `P_EditEnableInline`, `V_InputMenu`
 
-## Variable Scope Management
-- **Local variables**: Use `Dim` declarations at procedure start
-- **Avoid global variable collisions**: Use unique local variable names
-- **Variable collision pattern**: Multiple procedures using same local names
-- **Solution**: Rename locals with procedure-specific prefixes
+## Constants and Symbols
+```basic
+Symbol F_ENABLE    = 0
+Symbol F_SENSOR    = 1
+Symbol F_FLOWTYPE  = 2
+Symbol SENSOR_PRES = 0
+Symbol SENSOR_TEMP = 1
+Symbol SENSOR_FLOW = 2
+```
 
-## ISR (Interrupt Service Routine) Guidelines
-- **Timing**: Button timing moved from 10ms to 1ms block
-- **Increment**: Changed from +10 to +1 for proper timing
-- **Variables**: `B_KeyEvent`, `W_BtnHoldMS`, `B_VLongPress`
+## Critical Sections and ISR Protection
+```basic
+' Protect critical sections from interrupts
+GIE = 0
+W_BtnHoldTime = W_BtnHoldMS
+GIE = 1
+```
 
-## LCD Display Standards
-- **Position format**: `LCD_SetCursor(row, column)`
-- **Character writing**: `LCD_WriteDat(ascii_value)`
-- **Field clearing**: `P_ClrValFld(row, column)`
-- **Right-justification**: Pad with spaces for alignment
+## Loop Exit Patterns
+- **Use `GoTo` labels** - No `Break` or `ExitProc` available in loops
+- **Label naming**: 8-12 characters maximum for local labels
+- **Global scope**: All labels are globally scoped
 
-## Inline Editor Patterns
-- **Entry beep**: `P_Beeps(1)` when entering edit mode
-- **Parentheses display**: Show `(value)` during editing
-- **2Hz blink timing**: 250ms intervals using `L_Millis`
-- **Exit conditions**: 
-  - Long press: Cancel (restore original)
-  - Short press: Commit changes
-  - Timeout: Cancel (restore original)
+```basic
+While 1 = 1
+    ' Loop logic
+    If exit_condition Then
+        GoTo Exit_Loop    ' Use descriptive but short labels
+    EndIf
+Wend
 
-## Debug Output Conventions
-- **Format**: `HRSOut "message", 13` for serial console
-- **Debug prefixes**: "DEBUG: " for debug messages
-- **Variable display**: `Dec variable_name` for numeric values
-- **Entry/exit logging**: Log procedure entry and return values
+Exit_Loop:
+```
 
-## Menu Navigation Standards
-- **Encoder handling**: `P_ReadEnc()` for navigation
-- **Button handling**: `P_ReadBtn()` and `P_GetKeyEvt()`
-- **Selection highlighting**: `[Selected Item]` vs `Item`
-- **Screen refresh**: `Set b_ScrDirty` to trigger redraw
+## Inline Editor Standards
 
-## Code Organization
-- **Segmented approach**: Divide large codebase into numbered sections
-- **Section 8**: Contains inline editor procedures
-- **Modular design**: Separate procedures for each function
-- **Navigation codes**: Return values for menu flow control
+### Structure Pattern
+```basic
+Proc P_Edit[Type]Inline(B_Current As Byte, B_Row As Byte), Byte
+    Dim B_Working     As Byte           ' Working value
+    Dim B_Modified    As Byte           ' Track changes
+    Dim L_Blink       As Dword          ' 2Hz blink timing (8 chars max!)
+    Dim B_BlinkState  As Byte           ' Blink visibility
+    Dim B_ForceUpdate As Byte           ' Force display update
+    Dim B_Original    As Byte           ' Store original value
+    Dim W_BtnHoldTime As Word           ' Button hold timing
+    Dim B_Col         As Byte           ' Display column
+    Dim B_Start       As Byte           ' Text start position
+```
 
-## Error Prevention
-- **Balanced structures**: Always match If/EndIf, Select/EndSelect
-- **Variable initialization**: Clear variables at procedure entry
-- **State cleanup**: Reset flags when entering/exiting menus
-- **Race condition prevention**: Use interrupt protection for shared variables
+### Display Formatting Rules
+- **Field width**: 8 characters exactly for value field
+- **Right-justification**: Pad with spaces on left
+- **Tight parentheses**: Brackets immediately around text, not field edges
 
-## Common Patterns
-- **Menu procedures**: Local selection variables, scrolling logic, button handling
-- **Inline editors**: Blink timing, bracket display, value validation
-- **State management**: Screen dirty flags, navigation codes, timeout handling
-- **EEPROM operations**: Configuration saving with validation and checksums
+#### Text Alignment Examples
+```basic
+' 8-character field with right-justified text:
+"Disabled" → "Disabled" (8 chars, no spaces)
+"Enabled"  → " Enabled" (1 space + 7 chars)  
+"Temp"     → "    Temp" (4 spaces + 4 chars)
+"Analog"   → "  Analog" (2 spaces + 6 chars)
+"Digital"  → " Digital" (1 space + 7 chars)
+```
 
-## Debugging Strategies
-- **Systematic approach**: Fix one issue at a time
-- **Debug output**: Add logging to trace execution flow
-- **Variable tracking**: Log variable states at key points
-- **Critical section analysis**: Check for race conditions in ISR interactions
+#### Bracket Positioning
+```basic
+' Brackets placed immediately around actual text:
+"Disabled" → (Disabled)   ' Bracket at start of text
+" Enabled" → (Enabled)    ' Bracket before 'E', not before space
+"    Temp" → (Temp)       ' Bracket before 'T', not at field start
+```
+
+### Timing Standards
+- **Blink rate**: 2Hz (250ms intervals)
+- **Button debounce**: 100ms after release
+- **System stability delay**: 1ms in main loop
+
+### Exit Handling
+```basic
+' Long press - cancel with original value
+If W_BtnHoldTime >= BTN_LONG_MS And _BTN = 0 Then
+    P_Beeps(3)                 ' Error beep
+    Result = B_Original
+    GoTo Exit_[Short]          ' Use short label names
+EndIf
+
+' Short press - commit new value  
+Case 1
+    P_Beeps(2)                 ' Success beep
+    Result = B_Working
+    GoTo Exit_[Short]
+```
+
+## Flow Sensor Architecture
+
+### Storage Method
+- **Flow type storage**: Use `B_FlowMode.0` bit (0=Analog, 1=Digital)
+- **No Scale interference**: Preserves W_Scale4/W_Scale20 for analog sensors
+- **EEPROM integration**: Automatically saved with existing structure
+
+### Menu Structure
+```basic
+' Analog Flow: Enable, Sensor, Type, Scale4, Scale20, Display, Rly SLP, Back (8 items)
+' Digital Flow: Enable, Sensor, Type, Display, Back (5 items)
+```
+
+### Variable Refresh Pattern
+```basic
+' When sensor type changes to Flow, refresh flow type from storage:
+If B_SensorT = SENSOR_FLOW Then
+    Select B_In
+        Case 1: B_FlowType = B_I1_FlowMode.0
+        Case 2: B_FlowType = B_I2_FlowMode.0  
+        Case 3: B_FlowType = B_I3_FlowMode.0
+    EndSelect
+EndIf
+```
+
+## Debug Output Standards
+```basic
+HRSOut "DEBUG: Procedure entry - Input ", Dec B_In, 13
+HRSOut "Editor returned: ", Dec B_NewValue, 13
+B_KeyEvent = 0  ' Force clear at procedure entry
+```
+
+## Compiler-Specific Notes
+- **Balanced structures**: All If/EndIf and Select/EndSelect must be balanced
+- **Variable collisions**: Use unique local variable names (e.g., `B_InpSel` not `B_Sel`)
+- **Label scope**: Labels are global - use descriptive prefixes to avoid conflicts
+- **Case sensitivity**: Variables and labels are case-sensitive
+
+## Error Patterns to Avoid
+- **Long Dword names**: `L_LastBlink` → `L_Blink` (8 char limit)
+- **Long labels**: `Exit_FlowType` → `Exit_FType` (12 char limit)
+- **Unbalanced structures**: Missing EndIf, EndSelect statements
+- **Variable collisions**: Reusing common names like `B_Sel` across procedures
+- **Missing ISR protection**: Always protect shared variables with GIE disable/enable

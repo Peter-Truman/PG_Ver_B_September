@@ -176,6 +176,11 @@ Symbol FLOWTYPE_ANALOG = 0
 Symbol Flow_Type_Dig   = 1
 Symbol FLOWU_PERCENT   = 0
 Symbol FLOWU_LPS       = 1
+Symbol F_FLOWTYPE = 11
+Symbol F_UNITS    = 12
+Symbol F_ACTIVE   = 13
+Symbol F_BP_LOW   = 14
+Symbol F_RLY_LOW  = 15
 
 '------------------------------ IRQ Bits -----------------------------
 Symbol TMR0IF = INTCON.2
@@ -2302,6 +2307,122 @@ B_KeyEvent = 0  ' Force clear
     
 Exit_EnDis:
 EndProc
+'---------------------------------------------------------------------------
+Proc P_EditFlowTypeInline(B_Current As Byte, B_Row As Byte), Byte
+    Dim B_Working     As Byte
+    Dim B_Original    As Byte
+    Dim L_LstB        As Dword
+    Dim B_BState      As Byte
+    Dim B_FUpdate     As Byte
+    Dim W_BHldTime    As Word
+    Dim B_Col         As Byte
+    Dim B_Start       As Byte
+    
+    B_KeyEvent = 0  ' Force clear
+    
+    B_Col = 11
+    B_Start = B_Col + 1 + (8 - 7)  ' Position for "Analog" or "Digital"
+    
+    B_Original = B_Current
+    B_Working = B_Current
+    
+    L_LstB = L_Millis
+    B_BState = 0
+    B_FUpdate = 1
+    
+    P_Beeps(1)
+    
+    ' Set up parentheses for edit mode
+    P_ClrValFld(B_Row, B_Col)
+    LCD_SetCursor(B_Row, B_Start - 1)
+    LCD_WriteDat(40)  ' '('
+    LCD_SetCursor(B_Row, B_Col + 9)
+    LCD_WriteDat(41)  ' ')'
+    
+    While 1 = 1
+        ' Handle 2Hz blink timing
+        If (L_Millis - L_LstB) >= 250 Then
+            L_LstB = L_Millis
+            If B_BState = 0 Then
+                B_BState = 1
+            Else
+                B_BState = 0
+            EndIf
+            B_FUpdate = 1
+        EndIf
+        
+        ' Update display when needed
+        If B_FUpdate = 1 Then
+            B_FUpdate = 0
+            
+            LCD_SetCursor(B_Row, B_Start)
+            If B_BState = 1 Then
+                ' Blank during blink
+                LCD_WriteDat(32) : LCD_WriteDat(32) : LCD_WriteDat(32)
+                LCD_WriteDat(32) : LCD_WriteDat(32) : LCD_WriteDat(32) : LCD_WriteDat(32)
+            Else
+                If B_Working = 0 Then
+                    ' Display " Analog"
+                    LCD_WriteDat(32)  : LCD_WriteDat(65)  : LCD_WriteDat(110)
+                    LCD_WriteDat(97)  : LCD_WriteDat(108) : LCD_WriteDat(111) : LCD_WriteDat(103)
+                Else
+                    ' Display "Digital"
+                    LCD_WriteDat(68)  : LCD_WriteDat(105) : LCD_WriteDat(103)
+                    LCD_WriteDat(105) : LCD_WriteDat(116) : LCD_WriteDat(97)  : LCD_WriteDat(108)
+                EndIf
+            EndIf
+        EndIf
+        
+        ' Check for long press
+        GIE = 0
+        W_BHldTime = W_BtnHoldMS
+        GIE = 1
+        
+        If W_BHldTime >= BTN_LONG_MS And _BTN = 0 Then
+            P_Beeps(3)
+            While _BTN = 0
+                DelayMS 10
+            Wend
+            DelayMS 100
+            B_KeyEvent = 0
+            Result = B_Original
+            ExitProc
+        EndIf
+        
+        ' Handle encoder input - toggle between Analog/Digital
+        P_ReadEnc()
+        If B_EncDelta <> 0 Then
+            P_Beeps(1)
+            B_FUpdate = 1
+            
+            ' Toggle value
+            If B_Working = 0 Then
+                B_Working = 1
+            Else
+                B_Working = 0
+            EndIf
+        EndIf
+        
+        ' Handle button press - commit
+        P_ReadBtn()
+        Select P_GetKeyEvt()
+            Case 1
+                P_Beeps(2)
+                Result = B_Working
+                ExitProc
+        EndSelect
+        
+        ' Check for timeout
+        If (L_Millis - L_LastInput) > (W_UI_TimeoutS * 1000) Then
+            P_Beeps(3)
+            Result = B_Original
+            ExitProc
+        EndIf
+        
+        DelayMS 1
+    Wend
+EndProc
+'---------------------------------------------------------------------------
 
 Proc P_EditSensorInline(B_Current As Byte, B_Row As Byte), Byte
     Dim B_Working     As Byte           ' Working value (0=Pres, 1=Temp, 2=Flow)
@@ -3181,6 +3302,13 @@ Proc V_InputMenu(B_In As Byte), Byte
     Dim B_Display  As Byte
     Dim B_NewValue As Byte
     
+    ' Add Flow-specific local variables
+    Dim B_FlowType As Byte   ' 0=Analog, 1=Digital
+    Dim B_Units    As Byte   ' 0=Percent, 1=LpS (for analog flow)
+    Dim B_Active   As Byte   ' 0=Active Low, 1=Active High (for digital flow)
+    Dim W_BP_Low   As Word   ' Low flow bypass time
+    Dim B_RlyLow   As Byte   ' Low flow relay mode
+    
     ' DEBUG: Show input number
     HRSOut "DEBUG: V_InputMenu entry - Input ", Dec B_In,13
     
@@ -3227,6 +3355,34 @@ Proc V_InputMenu(B_In As Byte), Byte
     ' DEBUG: Show loaded values
     HRSOut "DEBUG: Loaded W_Scale4=", Dec W_Scale4, " W_Scale20=", Dec W_Scale20,13
     
+    ' Initialize Flow-specific variables if sensor is Flow
+    If B_SensorT = SENSOR_FLOW Then
+        Select B_In
+            Case 1
+                B_FlowType = B_I1_FlowMode.0     ' Extract bit 0 directly
+                B_Units = B_I1_FlowMode.1         ' Extract bit 1 directly
+                ' B_Active would come from B_I1_DigCnf when implemented
+                B_Active = 0  ' Default to Active Low for now
+                W_BP_Low = W_I1_BP_SLP  ' Reuse SLP for Low Flow
+                B_RlyLow = B_I1_RlySLP  ' Reuse SLP for Low Flow
+            Case 2
+                B_FlowType = B_I2_FlowMode.0
+                B_Units = B_I2_FlowMode.1
+                B_Active = 0  ' Default
+                W_BP_Low = W_I2_BP_SLP
+                B_RlyLow = B_I2_RlySLP
+            Case 3
+                B_FlowType = B_I3_FlowMode.0
+                B_Units = B_I3_FlowMode.1
+                B_Active = 0  ' Default
+                W_BP_Low = W_I3_BP_SLP
+                B_RlyLow = B_I3_RlySLP
+        EndSelect
+        
+        ' DEBUG output
+        HRSOut "Flow sensor - Type:", Dec B_FlowType, " Units:", Dec B_Units, 13
+    EndIf
+    
     Dim B_InpSel  As Byte        ' RENAMED to avoid variable collision
     Dim B_Top     As Byte
     Dim B_Cnt     As Byte
@@ -3263,8 +3419,12 @@ Proc V_InputMenu(B_In As Byte), Byte
         Else
             If B_SensorT = SENSOR_TEMP Then
                 B_Cnt = 10
-            Else
-                B_Cnt = 5
+            Else  ' FLOW sensor
+                If B_FlowType = 0 Then  ' Analog
+                    B_Cnt = 10  ' Enable, Sensor, Type, Units, Scale4, Scale20, LF BP, LF RLY, Display, Back
+                Else  ' Digital
+                    B_Cnt = 7   ' Enable, Sensor, Type, Active, LF BP, LF RLY, Display, Back
+                EndIf
             EndIf
         EndIf
         B_BackIdx = B_Cnt - 1
@@ -3355,16 +3515,56 @@ Proc V_InputMenu(B_In As Byte), Byte
                                     B_FieldId = F_BACK
                             EndSelect
                         Else
-                            ' FLOW sensor
+                            ' FLOW sensor field mapping
                             Select B_Idx
                                 Case 0
                                     B_FieldId = F_ENABLE
                                 Case 1
                                     B_FieldId = F_SENSOR
                                 Case 2
-                                    B_FieldId = F_DISPLAY
+                                    B_FieldId = F_FLOWTYPE
                                 Case 3
-                                    B_FieldId = F_RLY_SLP
+                                    If B_FlowType = 0 Then  ' Analog
+                                        B_FieldId = F_UNITS
+                                    Else  ' Digital
+                                        B_FieldId = F_ACTIVE
+                                    EndIf
+                                Case 4
+                                    If B_FlowType = 0 Then  ' Analog
+                                        B_FieldId = F_SCALE4
+                                    Else  ' Digital
+                                        B_FieldId = F_BP_LOW
+                                    EndIf
+                                Case 5
+                                    If B_FlowType = 0 Then  ' Analog
+                                        B_FieldId = F_SCALE20
+                                    Else  ' Digital
+                                        B_FieldId = F_RLY_LOW
+                                    EndIf
+                                Case 6
+                                    If B_FlowType = 0 Then  ' Analog
+                                        B_FieldId = F_BP_LOW
+                                    Else  ' Digital
+                                        B_FieldId = F_DISPLAY
+                                    EndIf
+                                Case 7
+                                    If B_FlowType = 0 Then  ' Analog
+                                        B_FieldId = F_RLY_LOW
+                                    Else  ' Digital - Back
+                                        B_FieldId = F_BACK
+                                    EndIf
+                                Case 8
+                                    If B_FlowType = 0 Then  ' Analog
+                                        B_FieldId = F_DISPLAY
+                                    Else
+                                        B_FieldId = F_BACK
+                                    EndIf
+                                Case 9
+                                    If B_FlowType = 0 Then  ' Analog - Back
+                                        B_FieldId = F_BACK
+                                    Else
+                                        B_FieldId = F_BACK
+                                    EndIf
                                 Case Else
                                     B_FieldId = F_BACK
                             EndSelect
@@ -3472,6 +3672,46 @@ Proc V_InputMenu(B_In As Byte), Byte
                                 Else
                                     P_PValTxtRJ(B_Row, 11, "No",  B_Act, 0)
                                 EndIf
+                                
+                            Case F_FLOWTYPE
+                                Print At B_Row,1,"Type      "
+                                If B_FlowType = 0 Then
+                                    P_PValTxtRJ(B_Row, 11, "Analog", B_Act, 0)
+                                Else
+                                    P_PValTxtRJ(B_Row, 11, "Digital", B_Act, 0)
+                                EndIf
+
+                            Case F_UNITS
+                                Print At B_Row,1,"Units     "
+                                If B_Units = 0 Then
+                                    P_PValTxtRJ(B_Row, 11, "%", B_Act, 0)
+                                Else
+                                    P_PValTxtRJ(B_Row, 11, "LpS", B_Act, 0)
+                                EndIf
+
+                            Case F_ACTIVE
+                                Print At B_Row,1,"Active    "
+                                If B_Active = 0 Then
+                                    P_PValTxtRJ(B_Row, 11, "Act Low", B_Act, 0)
+                                Else
+                                    P_PValTxtRJ(B_Row, 11, "Act High", B_Act, 0)
+                                EndIf
+
+                            Case F_BP_LOW
+                                Print At B_Row,1,"LF BP     "
+                                P_PValTmeRJ(B_Row, 11, W_BP_Low, B_Act)
+
+                            Case F_RLY_LOW
+                                Print At B_Row,1,"LF Relay  "
+                                Select B_RlyLow
+                                    Case MODE_NO
+                                        P_PValTxtRJ(B_Row, 11, "Not Used", B_Act, 0)
+                                    Case MODE_PULSE
+                                        P_PValTxtRJ(B_Row, 11, "Pulse", B_Act, 0)
+                                    Case MODE_LATCH
+                                        P_PValTxtRJ(B_Row, 11, "Latch", B_Act, 0)
+                                EndSelect
+                                
                         EndSelect
                     EndIf
                 Else
@@ -3562,16 +3802,56 @@ Proc V_InputMenu(B_In As Byte), Byte
                                 B_FieldId = F_BACK
                         EndSelect
                     Else
-                        ' FLOW sensor
+                        ' FLOW sensor field mapping for button press
                         Select B_InpSel
                             Case 0
                                 B_FieldId = F_ENABLE
                             Case 1
                                 B_FieldId = F_SENSOR
                             Case 2
-                                B_FieldId = F_DISPLAY
+                                B_FieldId = F_FLOWTYPE
                             Case 3
-                                B_FieldId = F_RLY_SLP
+                                If B_FlowType = 0 Then  ' Analog
+                                    B_FieldId = F_UNITS
+                                Else  ' Digital
+                                    B_FieldId = F_ACTIVE
+                                EndIf
+                            Case 4
+                                If B_FlowType = 0 Then  ' Analog
+                                    B_FieldId = F_SCALE4
+                                Else  ' Digital
+                                    B_FieldId = F_BP_LOW
+                                EndIf
+                            Case 5
+                                If B_FlowType = 0 Then  ' Analog
+                                    B_FieldId = F_SCALE20
+                                Else  ' Digital
+                                    B_FieldId = F_RLY_LOW
+                                EndIf
+                            Case 6
+                                If B_FlowType = 0 Then  ' Analog
+                                    B_FieldId = F_BP_LOW
+                                Else  ' Digital
+                                    B_FieldId = F_DISPLAY
+                                EndIf
+                            Case 7
+                                If B_FlowType = 0 Then  ' Analog
+                                    B_FieldId = F_RLY_LOW
+                                Else  ' Digital - Back
+                                    B_FieldId = F_BACK
+                                EndIf
+                            Case 8
+                                If B_FlowType = 0 Then  ' Analog
+                                    B_FieldId = F_DISPLAY
+                                Else
+                                    B_FieldId = F_BACK
+                                EndIf
+                            Case 9
+                                If B_FlowType = 0 Then  ' Analog - Back
+                                    B_FieldId = F_BACK
+                                Else
+                                    B_FieldId = F_BACK
+                                EndIf
                             Case Else
                                 B_FieldId = F_BACK
                         EndSelect
@@ -3613,6 +3893,22 @@ Proc V_InputMenu(B_In As Byte), Byte
                         If B_NewValue <> B_SensorT Then
                             B_SensorT = B_NewValue
                             HRSOut "Updated B_SensorT to: ", Dec B_SensorT, 13
+                            
+                            ' If changing to Flow, reload Flow-specific settings
+                            If B_SensorT = SENSOR_FLOW Then
+                                Select B_In
+                                    Case 1
+                                        B_FlowType = B_I1_FlowMode.0
+                                        B_Units = B_I1_FlowMode.1
+                                    Case 2
+                                        B_FlowType = B_I2_FlowMode.0
+                                        B_Units = B_I2_FlowMode.1
+                                    Case 3
+                                        B_FlowType = B_I3_FlowMode.0
+                                        B_Units = B_I3_FlowMode.1
+                                EndSelect
+                            EndIf
+                            
                             Select B_In
                                 Case 1
                                     B_I1_SensorT = B_SensorT
@@ -3794,6 +4090,83 @@ Proc V_InputMenu(B_In As Byte), Byte
                             P_SaveInCfg(B_In)
                         EndIf
                         Set b_ScrDirty
+                        
+                    Case F_FLOWTYPE
+                        B_NewValue = P_EditFlowTypeInline(B_FlowType, B_RowSel)  ' 0=Analog, 1=Digital
+                        If B_NewValue <> B_FlowType Then
+                            B_FlowType = B_NewValue
+                            ' Update bit-packed storage
+                            Select B_In
+                                Case 1
+                                    B_I1_FlowMode.0 = B_FlowType
+                                Case 2
+                                    B_I2_FlowMode.0 = B_FlowType
+                                Case 3
+                                    B_I3_FlowMode.0 = B_FlowType
+                            EndSelect
+                            P_SaveInCfg(B_In)
+                        EndIf
+                        Set b_ScrDirty
+
+                    Case F_UNITS
+                        B_NewValue = P_EditYNInline(B_Units, B_RowSel)  ' 0=%, 1=LpS
+                        If B_NewValue <> B_Units Then
+                            B_Units = B_NewValue
+                            Select B_In
+                                Case 1
+                                    B_I1_FlowMode.1 = B_Units
+                                Case 2
+                                    B_I2_FlowMode.1 = B_Units
+                                Case 3
+                                    B_I3_FlowMode.1 = B_Units
+                            EndSelect
+                            P_SaveInCfg(B_In)
+                        EndIf
+                        Set b_ScrDirty
+
+                    Case F_ACTIVE
+                        B_NewValue = P_EditYNInline(B_Active, B_RowSel)  ' 0=Low, 1=High
+                        If B_NewValue <> B_Active Then
+                            B_Active = B_NewValue
+                            ' Store in DigCnf when implemented
+                            P_SaveInCfg(B_In)
+                        EndIf
+                        Set b_ScrDirty
+                        
+                    Case F_BP_LOW
+                        W_NewTime = P_EditTimeInline(W_BP_Low, B_RowSel)
+                        If W_NewTime <> W_BP_Low Then 
+                            W_BP_Low = W_NewTime
+                            ' Save back to SLP storage (reused for Low Flow)
+                            Select B_In
+                                Case 1
+                                    W_I1_BP_SLP = W_BP_Low
+                                Case 2
+                                    W_I2_BP_SLP = W_BP_Low
+                                Case 3
+                                    W_I3_BP_SLP = W_BP_Low
+                            EndSelect
+                            P_SaveInCfg(B_In)
+                        EndIf
+                        Set b_ScrDirty
+
+                    Case F_RLY_LOW
+                        B_NewValue = P_EditEnum3Inline(B_RlyLow, B_RowSel)
+                        If B_NewValue <> B_RlyLow Then
+                            B_RlyLow = B_NewValue
+                            ' Save back to RlySLP storage (reused for Low Flow)
+                            Select B_In
+                                Case 1
+                                    B_I1_RlySLP = B_RlyLow
+                                Case 2
+                                    B_I2_RlySLP = B_RlyLow
+                                Case 3
+                                    B_I3_RlySLP = B_RlyLow
+                            EndSelect
+                            P_SaveInCfg(B_In)
+                        EndIf
+                        Set b_ScrDirty
+                        
                 EndSelect
         EndSelect
     Wend
@@ -4366,13 +4739,13 @@ Main:
     P_LCDHardInit()
     P_LCDSafeInit()
     
-' DEBUG: Check initial button state
-    HRSOut "DEBUG: Initial button states:", 13
-    HRSOut "  _BTN pin = ", Dec _BTN, 13
-    HRSOut "  B_ButtonState = ", Dec B_ButtonState, 13
-    HRSOut "  W_BtnHoldMS = ", Dec W_BtnHoldMS, 13
-    HRSOut "  B_VLongPress = ", Dec B_VLongPress, 13
-    B_KeyEvent = 0          ' Clear any stale ISR events
+'' DEBUG: Check initial button state
+'    HRSOut "DEBUG: Initial button states:", 13
+'    HRSOut "  _BTN pin = ", Dec _BTN, 13
+'    HRSOut "  B_ButtonState = ", Dec B_ButtonState, 13
+'    HRSOut "  W_BtnHoldMS = ", Dec W_BtnHoldMS, 13
+'    HRSOut "  B_VLongPress = ", Dec B_VLongPress, 13
+'    B_KeyEvent = 0          ' Clear any stale ISR events
 
 
 
