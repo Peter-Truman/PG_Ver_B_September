@@ -1,368 +1,103 @@
-# Positron8 BASIC Complete Style Guide - IRRISYS Project
-**Updated December 2025 - Inline Editing Standards**
+# IRRISYS PIC18F2525 Embedded System Coding Style Sheet
 
-NOTE: This project is written in Positron Basic 8 Bit compiler - DO NOT REVERT TO C
-## Critical Syntax Rules
+## Language & Platform
+- **Language**: BASIC for PIC microcontroller
+- **Target**: PIC18F2525 embedded system with LCD menu interface
+- **Compiler**: Requires balanced control structures (If/EndIf, Select/EndSelect, While/Wend)
 
-### 1. Colon Usage - VERY IMPORTANT
-**ALLOWED** (single statement after Then):
-```basic
-If B_I1_FlowType = Flow_Type_Dig Then B_Mode = B_Mode Or %00000001
-```
+## Variable Naming Conventions
+- **B_**: Byte variables (8-bit)
+- **W_**: Word variables (16-bit) 
+- **L_**: Long/Dword variables (32-bit)
+- **S_**: Signed variables
 
-**ALLOWED** (multiple variable assignments):
-```basic
-B_Sel = 0 : B_Top = 0
-P_Sgn = B_Sgn : P_H = B_H : P_T = B_T : P_U = B_U
-```
+## Procedure & Function Standards
+- **Procedure naming**: `P_` prefix for procedures
+- **Function naming**: `F_` prefix for functions
+- **Inline editors**: `P_Edit[Type]Inline()` format
+- **Menu procedures**: `V_[MenuName]()` format
 
-**NOT ALLOWED** (multiple statements with colons):
-```basic
-If X = y Then Y=X: Else Y=Y*2: EndIf
-```
+## Control Structure Requirements
+- **All If statements must have matching EndIf**
+- **All Select statements must have matching EndSelect**
+- **All While statements must have matching Wend**
+- **Missing EndIf/EndSelect causes compilation errors**
 
-**Correct format for multi-statement conditionals:**
-```basic
-If B_Idx = B_Sel Then
-    B_Act = 1
-Else
-    B_Act = 0
-EndIf
-```
+## Loop Exit Conventions
+- **While/Wend loops**: Use `Goto [label]` to exit (not `Break` or `ExitProc`)
+- **Labels are global**: Use unique names like `Exit_[ShortName]` 
+- **Label length limit**: Keep labels short due to compiler limitations
+- **Example**: `Exit_EDEdit` instead of `ExitEnableEditor`
 
-### 2. Case Statement Format
-**NOT ALLOWED:**
-```basic
-Case 0 : P_PrintRow(B_Row, "Main Menu", B_Act)
-```
+## Critical Section Protection
+- **ISR synchronization**: Wrap critical sections with `GIE = 0` / `GIE = 1`
+- **Button event handling**: Protect `B_KeyEvent` read/clear operations
+- **Example**:
+  ```basic
+  GIE = 0
+  Result = B_KeyEvent
+  B_KeyEvent = 0
+  GIE = 1
+  ```
 
-**CORRECT:**
-```basic
-Case 0
-    P_PrintRow(B_Row, "Main Menu", B_Act)
-```
+## Variable Scope Management
+- **Local variables**: Use `Dim` declarations at procedure start
+- **Avoid global variable collisions**: Use unique local variable names
+- **Variable collision pattern**: Multiple procedures using same local names
+- **Solution**: Rename locals with procedure-specific prefixes
 
-### 3. Variable Naming Limits - CRITICAL
-**Context-dependent limits (varies by procedure complexity):**
-- **Byte variables: 9-11 characters maximum**
-- **Word variables: 12 characters maximum**
-- **Dword variables: 8-14 characters maximum**
-- **SByte/SWord/SDword: Same as unsigned equivalents**
+## ISR (Interrupt Service Routine) Guidelines
+- **Timing**: Button timing moved from 10ms to 1ms block
+- **Increment**: Changed from +10 to +1 for proper timing
+- **Variables**: `B_KeyEvent`, `W_BtnHoldMS`, `B_VLongPress`
 
-**CORRECT:**
-```basic
-Dim B_URes As Byte                       ' 6 chars - safe
-Dim W_TimeCount As Word                  ' 11 chars - usually OK
-Dim L_TimeSince As Dword                 ' 11 chars - usually OK
-```
+## LCD Display Standards
+- **Position format**: `LCD_SetCursor(row, column)`
+- **Character writing**: `LCD_WriteDat(ascii_value)`
+- **Field clearing**: `P_ClrValFld(row, column)`
+- **Right-justification**: Pad with spaces for alignment
 
-**PROBLEMATIC:**
-```basic
-Dim B_UserResponse As Byte               ' 13 chars - too long
-Dim B_StartupPhase As Byte               ' 13 chars - too long
-Dim L_TimeSinceClick As Dword            ' 15 chars - too long
-```
+## Inline Editor Patterns
+- **Entry beep**: `P_Beeps(1)` when entering edit mode
+- **Parentheses display**: Show `(value)` during editing
+- **2Hz blink timing**: 250ms intervals using `L_Millis`
+- **Exit conditions**: 
+  - Long press: Cancel (restore original)
+  - Short press: Commit changes
+  - Timeout: Cancel (restore original)
 
-### 4. Procedure Naming Limits
-- **Procedure names: Maximum 14 characters**
-- **Maximum 10 parameters** per procedure
-- No line continuation characters (`_`) in procedure definitions
-- Use single line for procedure signature
-- **CRITICAL**: Never use `ByRef` with SWord parameters - causes stack corruption
-- **CRITICAL**: No string arrays `AS_Array() As String` - not supported
-- **CRITICAL**: No arrays as parameters `AB_Values() As Byte` - not supported
+## Debug Output Conventions
+- **Format**: `HRSOut "message", 13` for serial console
+- **Debug prefixes**: "DEBUG: " for debug messages
+- **Variable display**: `Dec variable_name` for numeric values
+- **Entry/exit logging**: Log procedure entry and return values
 
-**CORRECT:**
-```basic
-Proc V_InputMenu(B_In As Byte), Byte    ' 12 chars - OK
-Proc P_EditS3Stand(I_Val As SWord, B_Row As Byte), SWord
-```
+## Menu Navigation Standards
+- **Encoder handling**: `P_ReadEnc()` for navigation
+- **Button handling**: `P_ReadBtn()` and `P_GetKeyEvt()`
+- **Selection highlighting**: `[Selected Item]` vs `Item`
+- **Screen refresh**: `Set b_ScrDirty` to trigger redraw
 
-**NEVER DO:**
-```basic
-Proc P_VeryLongProcedureName()           ' 23 chars - TOO LONG
-Proc P_EditValue(ByRef I_Val As SWord)   ' ByRef causes corruption
-Proc P_Menu(AS_Items() As String)        ' String arrays not supported
-Proc P_Process(AB_Values() As Byte)      ' Arrays as parameters not supported
-```
+## Code Organization
+- **Segmented approach**: Divide large codebase into numbered sections
+- **Section 8**: Contains inline editor procedures
+- **Modular design**: Separate procedures for each function
+- **Navigation codes**: Return values for menu flow control
 
-### 5. Static Variables - CRITICAL SYNTAX
-**CORRECT:**
-```basic
-Static Dim B_Counter As Byte = 0         ' Must have initial value
-Static Dim W_Timer As Word = 1000        ' Must include Static Dim together
-```
+## Error Prevention
+- **Balanced structures**: Always match If/EndIf, Select/EndSelect
+- **Variable initialization**: Clear variables at procedure entry
+- **State cleanup**: Reset flags when entering/exiting menus
+- **Race condition prevention**: Use interrupt protection for shared variables
 
-**WRONG:**
-```basic
-Dim B_Counter As Byte                    ' Missing Static keyword
-Static B_Counter As Byte                 ' Wrong order - Dim must follow Static
-Static Dim B_Counter As Byte             ' Missing required initial value
-```
+## Common Patterns
+- **Menu procedures**: Local selection variables, scrolling logic, button handling
+- **Inline editors**: Blink timing, bracket display, value validation
+- **State management**: Screen dirty flags, navigation codes, timeout handling
+- **EEPROM operations**: Configuration saving with validation and checksums
 
-### 6. String Limitations - CRITICAL
-**NOT SUPPORTED:**
-```basic
-Dim AS_Menu(10) As String                ' String arrays not allowed
-Proc P_ShowMenu(AS_Items() As String)    ' Cannot pass string arrays
-```
-
-**ALTERNATIVES:**
-```basic
-' Use individual string variables
-Dim S_Menu0 As String
-Dim S_Menu1 As String
-
-' Or use Flash memory strings for constants
-Dim MenuText1 As Flash8 = "Main Menu", 0
-Dim MenuText2 As Flash8 = "Settings", 0
-```
-
-### 7. Control Structure Format
-```basic
-' If statements
-If Condition Then
-    Statement
-Else
-    Statement
-EndIf
-
-' Select statements  
-Select Variable
-    Case Value1
-        Statement
-    Case Value2
-        Statement
-    Case Else
-        Statement
-EndSelect
-
-' While loops
-While Condition
-    Statement
-Wend
-
-' For loops
-For Variable = Start To End
-    Statement
-Next Variable
-```
-
-## Inline Editing Architecture - NEW STANDARD
-
-### Core Philosophy
-- **Eliminate full-screen editing modes** in favor of inline editing
-- **Maintain screen layout consistency** with bracket/parentheses visual strategy
-- **Use 2Hz blinking** (250ms intervals) for active field indication
-- **Provide consistent user feedback** patterns across all editors
-
-### Visual Strategy
-```basic
-' List/Navigation mode - brackets indicate selectable items
-P_PValTxtRJ(B_Row, 11, "Enabled", B_Act, 0)     ' Shows [Enabled] when selected
-
-' Edit mode - parentheses indicate active editing
-LCD_WriteDat(40)                                ' '(' at start
-LCD_WriteDat(41)                                ' ')' at end
-' Content blinks at 2Hz between display positions
-```
-
-### Standard Inline Editor Structure
-```basic
-Proc P_Edit[Type]Inline([Current] As [Type], B_Row As Byte), [Type]
-    ' State variables
-    Dim [Working] As [Type], B_Modified As Byte, L_LastBlink As Dword
-    Dim B_BlinkState As Byte, B_ForceUpdate As Byte, [Original] As [Type]
-    Dim W_BtnHoldTime As Word, B_Col As Byte, B_Start As Byte
-    
-    ' Initialize positioning and state
-    B_Col = 11 : B_Start = B_Col + 1 + (8 - [width])
-    [Original] = [Current] : [Working] = [Current]
-    L_LastBlink = L_Millis : B_BlinkState = 0 : B_ForceUpdate = 1
-    P_Beeps(1)  ' Entry beep
-    
-    ' Set parentheses for edit mode
-    P_ClrValFld(B_Row, B_Col)
-    LCD_SetCursor(B_Row, B_Start - 1) : LCD_WriteDat(40)  ' '('
-    LCD_SetCursor(B_Row, B_Col + 9) : LCD_WriteDat(41)    ' ')'
-    
-    While 1 = 1
-        ' 2Hz blink timing
-        If (L_Millis - L_LastBlink) >= 250 Then
-            L_LastBlink = L_Millis
-            B_BlinkState = 1 - B_BlinkState : B_ForceUpdate = 1
-        EndIf
-        
-        ' Display update logic with blinking
-        ' Long press detection and timeout handling  
-        ' Encoder input processing
-        ' Button commit logic
-    Wend
-EndProc
-```
-
-### Standard Editor Types
-- **Time Values**: `P_EditTimeInline(W_Seconds, B_Row)` - MM:SS format, 60:00 max
-- **Boolean Values**: `P_EditYNInline(B_Value, B_Row)` - Yes/No toggle
-- **3-Option Enums**: `P_EditEnum3Inline(B_Value, B_Row)` - No/Pulse/Latch cycle
-- **Sensor Types**: `P_EditSensorInline(B_Value, B_Row)` - Pressure/Temp/Flow cycle
-- **Signed Numbers**: `P_EditS3Stand(I_Value, B_Row)` - 3-digit signed with field editing
-
-### Integration Pattern
-```basic
-' Replace old pattern:
-B_Ed = P_EditMMSS(W_Value)
-If B_Ed = 1 Then
-    ' Update and save logic
-EndIf
-
-' With new pattern:
-W_NewValue = P_EditTimeInline(W_Value, B_RowSel) 
-If W_NewValue <> W_Value Then
-    W_Value = W_NewValue
-    ' Update and save logic
-EndIf
-```
-
-### ISR Integration Requirements
-- Use existing ISR timing: `L_Millis`, `W_BtnHoldMS`, `B_KeyEvent`
-- Safe encoder reading: `P_ReadEnc()` with `B_EncDelta`
-- Button classification: `P_GetKeyEvt()` for press types
-- Activity tracking: `L_LastInput` for timeout management
-
-## Variable Declaration Patterns
-
-### 1. Local Variables
-```basic
-Proc MyProcedure(), Byte
-    Dim B_Count As Byte                  ' Local to procedure
-    Dim W_Timer As Word                  ' Destroyed when procedure exits
-    Dim L_Start As Dword                 ' Reinitalized each call
-    
-    ' Procedure code here
-    Result = B_Count
-EndProc
-```
-
-### 2. Static Local Variables
-```basic
-Proc MyProcedure(), Byte
-    Static Dim B_CallCnt As Byte = 0     ' Persistent between calls
-    Static Dim W_Total As Word = 0       ' Initialized only once
-    
-    Inc B_CallCnt                        ' Retains value
-    Result = B_CallCnt
-EndProc
-```
-
-### 3. Global Variables
-```basic
-' At program top level
-Dim B_SystemMode As Byte                 ' Available everywhere
-Dim W_UI_Timeout As Word                 ' Global system state
-Dim L_Millis As Dword                    ' ISR updated timing
-```
-
-## Flash Memory Strings
-
-### 1. Simple Text Storage
-```basic
-Dim WelcomeMsg As Flash8 = "IRRISYS HMI v2.0", 0
-Dim ErrorMsg As Flash8 = "System Error", 0
-
-' Usage - direct printing
-Print WelcomeMsg
-HSerout ErrorMsg
-```
-
-### 2. Menu Text Storage
-```basic
-Dim Menu1Text As Flash8 = "Input Config", 0
-Dim Menu2Text As Flash8 = "System Setup", 0
-Dim Menu3Text As Flash8 = "Diagnostics", 0
-
-' Usage in menus
-Print At 2, 1, Menu1Text
-Print At 3, 1, Menu2Text
-Print At 4, 1, Menu3Text
-```
-
-## ISR Programming
-
-### 1. ISR-Safe Variable Access
-```basic
-' Reading ISR variables safely
-GIE = 0                                  ' Disable interrupts
-W_LocalCopy = W_ISRVariable              ' Atomic read
-GIE = 1                                  ' Re-enable interrupts
-
-' Use W_LocalCopy for calculations
-```
-
-### 2. Timing and Debouncing
-```basic
-' ISR-based timing (1ms resolution)
-If L_Millis - L_LastEvent > 100 Then    ' 100ms timeout
-    ' Handle timeout
-    L_LastEvent = L_Millis
-EndIf
-
-' Button debouncing patterns
-If W_BtnHoldMS >= BTN_LONG_MS Then      ' Long press detection
-    ' Handle long press
-EndIf
-```
-
-## Program Organization
-
-### Section Guidelines
-- **Section Size**: 300-350 lines maximum
-- **Section Labels**: Use `'----Start Section X----` and `'-----End Section X----`
-- **Procedure Integrity**: Complete procedures in single sections when possible
-- **Logical Grouping**: Break sections at natural functional boundaries
-
-### Code Change Guidelines
-- **Single line changes**: Provide just the corrected line
-- **Procedure changes**: Provide the complete fresh procedure
-- **System-wide changes**: Provide complete affected sections
-
-## Project-Specific Constants
-
-### Hardware Configuration
-```basic
-Symbol _ENC_A   = PORTB.1                ' Encoder channel A
-Symbol _ENC_B   = PORTB.2                ' Encoder channel B
-Symbol _BTN     = PORTB.6                ' Push button (active low)
-Symbol _BUZZER  = PORTC.2                ' Beeper output
-```
-
-### Timing Constants
-```basic
-Symbol BTN_SHORT_MS     = 200            ' Short press threshold
-Symbol BTN_LONG_MS      = 900            ' Long press threshold
-Symbol BTN_VLONG_MS     = 1800           ' Very long press threshold
-```
-
-### EEPROM Configuration
-```basic
-Symbol EE_MAGIC_BYTE    = $A5            ' Block validation
-Symbol EE_VERSION       = $01            ' Configuration version
-Symbol EE_BLOCK_SIZE    = 32             ' Configuration block size
-```
-
-### Sensor and Mode Constants
-```basic
-Symbol SENSOR_PRES = 0                   ' Pressure sensor type
-Symbol SENSOR_TEMP = 1                   ' Temperature sensor type  
-Symbol SENSOR_FLOW = 2                   ' Flow sensor type
-
-Symbol MODE_NO    = 0                    ' No relay action
-Symbol MODE_PULSE = 1                    ' Pulse relay mode
-Symbol MODE_LATCH = 2                    ' Latch relay mode
-```
-
----
-
-**Last Updated:** December 2025  
-**Project:** IRRISYS HMI System  
-**Status:** Production-tested syntax rules with inline editing standards
+## Debugging Strategies
+- **Systematic approach**: Fix one issue at a time
+- **Debug output**: Add logging to trace execution flow
+- **Variable tracking**: Log variable states at key points
+- **Critical section analysis**: Check for race conditions in ISR interactions

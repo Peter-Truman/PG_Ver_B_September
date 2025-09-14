@@ -2023,53 +2023,53 @@ B_KeyEvent = 0  ' Force clear
 EndProc
 
 '------------------------ 3-OPTION ENUM EDITOR -----------------------
-Proc P_EditEnum3(ByRef B_Val As Byte), Byte
-    Dim B_Cur As Byte
+'Proc P_EditEnum3(ByRef B_Val As Byte), Byte
+'    Dim B_Cur As Byte
 
-'HRSOut "DEBUG: Entering [MenuName] - B_KeyEvent=", Dec B_KeyEvent, " B_Sel=", Dec B_Sel, 13
-B_KeyEvent = 0  ' Force clear
+''HRSOut "DEBUG: Entering [MenuName] - B_KeyEvent=", Dec B_KeyEvent, " B_Sel=", Dec B_Sel, 13
+'B_KeyEvent = 0  ' Force clear
 
 
-    B_Cur = B_Val
-    Set b_ScrDirty
+'    B_Cur = B_Val
+'    Set b_ScrDirty
 
-    While 1 = 1
-        If b_ScrDirty = 1 Then
-            P_Beeps(1)
-            P_DrawTitle("EDIT: MODE         ")
-            P_ClrLine(2) : P_ClrLine(3) : P_ClrLine(4)
-            Select B_Cur
-                Case 0
-                    Print At 3,1,"[No]  Pulse  Latch   "
-                Case 1
-                    Print At 3,1," No  [Pulse] Latch   "
-                Case 2
-                    Print At 3,1," No   Pulse [Latch]  "
-            EndSelect
-            b_ScrDirty = 0
-        EndIf
+'    While 1 = 1
+'        If b_ScrDirty = 1 Then
+'            P_Beeps(1)
+'            P_DrawTitle("EDIT: MODE         ")
+'            P_ClrLine(2) : P_ClrLine(3) : P_ClrLine(4)
+'            Select B_Cur
+'                Case 0
+'                    Print At 3,1,"[No]  Pulse  Latch   "
+'                Case 1
+'                    Print At 3,1," No  [Pulse] Latch   "
+'                Case 2
+'                    Print At 3,1," No   Pulse [Latch]  "
+'            EndSelect
+'            b_ScrDirty = 0
+'        EndIf
 
-        P_ReadEnc()
-        If B_EncDelta = 1 Then
-            If B_Cur < 2 Then Inc B_Cur
-            Set b_ScrDirty
-        Else
-            If B_EncDelta = -1 Then
-                If B_Cur > 0 Then Dec B_Cur
-                Set b_ScrDirty
-            EndIf
-        EndIf
+'        P_ReadEnc()
+'        If B_EncDelta = 1 Then
+'            If B_Cur < 2 Then Inc B_Cur
+'            Set b_ScrDirty
+'        Else
+'            If B_EncDelta = -1 Then
+'                If B_Cur > 0 Then Dec B_Cur
+'                Set b_ScrDirty
+'            EndIf
+'        EndIf
 
-        P_ReadBtn()
-        Select P_GetKeyEvt()
-            Case 1
-                P_Beeps(2)
-                B_Val = B_Cur
-                Result = 1
-                ExitProc
-        EndSelect
-    Wend
-EndProc
+'        P_ReadBtn()
+'        Select P_GetKeyEvt()
+'            Case 1
+'                P_Beeps(2)
+'                B_Val = B_Cur
+'                Result = 1
+'                ExitProc
+'        EndSelect
+'    Wend
+'EndProc
 
 '------------------------ TIME EDITOR (MM:SS) ------------------------
 Proc P_EditMMSS(ByRef W_Val As Word), Byte
@@ -2317,11 +2317,9 @@ Proc P_EditSensorInline(B_Current As Byte, B_Row As Byte), Byte
 'HRSOut "DEBUG: Entering [MenuName] - B_KeyEvent=", Dec B_KeyEvent, " B_Sel=", Dec B_Sel, 13
 B_KeyEvent = 0  ' Force clear
 
-
-
     ' Fixed display positioning to match your layout strategy
     B_Col = 11                          ' Column where value field starts
-    B_Start = B_Col + 1 + (8 - 8)       ' Right-justified start for (Pressure)
+    B_Start = B_Col + 1 + (8 - 8)       ' Right-justified start for sensor types
     
     ' Store original value for potential restore
     B_Original = B_Current
@@ -2362,6 +2360,9 @@ B_KeyEvent = 0  ' Force clear
         If B_ForceUpdate = 1 Then
             B_ForceUpdate = 0
             
+            ' Clear the value field first
+            P_ClrValFld(B_Row, B_Col)
+            
             ' Display sensor type text - blink entire text
             LCD_SetCursor(B_Row, B_Start)
             If B_BlinkState = 1 Then
@@ -2370,20 +2371,40 @@ B_KeyEvent = 0  ' Force clear
                 LCD_WriteDat(32) : LCD_WriteDat(32) : LCD_WriteDat(32) : LCD_WriteDat(32)
             Else
                 Select B_Working
-                    Case SENSOR_PRES   ' "Pressure"
+                    Case SENSOR_PRES   ' "Pressure" (8 chars exactly)
                         LCD_WriteDat(80)  : LCD_WriteDat(114) : LCD_WriteDat(101) : LCD_WriteDat(115)
                         LCD_WriteDat(115) : LCD_WriteDat(117) : LCD_WriteDat(114) : LCD_WriteDat(101)
-                    Case SENSOR_TEMP   ' "Temp    " (padded to 8 chars)
+                    Case SENSOR_TEMP   ' "    Temp" (4 spaces + 4 chars)
+                        LCD_WriteDat(32)  : LCD_WriteDat(32)  : LCD_WriteDat(32)  : LCD_WriteDat(32)
                         LCD_WriteDat(84)  : LCD_WriteDat(101) : LCD_WriteDat(109) : LCD_WriteDat(112)
+                    Case SENSOR_FLOW   ' "    Flow" (4 spaces + 4 chars)
                         LCD_WriteDat(32)  : LCD_WriteDat(32)  : LCD_WriteDat(32)  : LCD_WriteDat(32)
-                    Case SENSOR_FLOW   ' "Flow    " (padded to 8 chars)
                         LCD_WriteDat(70)  : LCD_WriteDat(108) : LCD_WriteDat(111) : LCD_WriteDat(119)
-                        LCD_WriteDat(32)  : LCD_WriteDat(32)  : LCD_WriteDat(32)  : LCD_WriteDat(32)
-                    Case Else          ' "Error   " (padded to 8 chars)
-                        LCD_WriteDat(69)  : LCD_WriteDat(114) : LCD_WriteDat(114) : LCD_WriteDat(111)
-                        LCD_WriteDat(114) : LCD_WriteDat(32)  : LCD_WriteDat(32)  : LCD_WriteDat(32)
+                    Case Else          ' "   Error" (3 spaces + 5 chars)
+                        LCD_WriteDat(32)  : LCD_WriteDat(32)  : LCD_WriteDat(32)  : LCD_WriteDat(69)
+                        LCD_WriteDat(114) : LCD_WriteDat(114) : LCD_WriteDat(111) : LCD_WriteDat(114)
                 EndSelect
             EndIf
+            
+            ' Position the non-blinking opening bracket AFTER text display
+            Select B_Working
+                Case SENSOR_PRES
+                    ' "Pressure" (8 chars) - bracket goes at B_Start - 1 (before the 'P')
+                    LCD_SetCursor(B_Row, B_Start - 1)
+                    LCD_WriteDat(40)                   ' '('
+                Case SENSOR_TEMP, SENSOR_FLOW
+                    ' "    Temp" or "    Flow" (4 spaces + 4 chars) - bracket goes at B_Start + 3 (before the 'T' or 'F')
+                    LCD_SetCursor(B_Row, B_Start + 3)
+                    LCD_WriteDat(40)                   ' '('
+                Case Else
+                    ' "   Error" (3 spaces + 5 chars) - bracket goes at B_Start + 2 (before the 'E')
+                    LCD_SetCursor(B_Row, B_Start + 2)
+                    LCD_WriteDat(40)                   ' '('
+            EndSelect
+            
+            ' Always show closing bracket (non-blinking)
+            LCD_SetCursor(B_Row, B_Col + 9)
+            LCD_WriteDat(41)                   ' ')'
         EndIf
         
         ' Check for long press using ISR timing
@@ -2404,7 +2425,7 @@ B_KeyEvent = 0  ' Force clear
             B_KeyEvent = 0             ' Clear ISR event
             
             Result = B_Original        ' Return original value
-            ExitProc
+            GoTo Exit_Sensor          ' Exit the procedure
         EndIf
         
         ' Handle encoder input - cycles through sensor types
@@ -2439,25 +2460,23 @@ B_KeyEvent = 0  ' Force clear
         Select P_GetKeyEvt()
             Case 1                     ' Short press - commit
                 P_Beeps(2)             ' Success confirmation
-' At the end of P_EditSensorInline, before Result = B_Working
-HRSOut "Sensor editor returning: ", Dec B_Working, 13
-
-
+                HRSOut "Sensor editor returning: ", Dec B_Working, 13
                 Result = B_Working
-                ExitProc
+                GoTo Exit_Sensor  ' Exit the procedure
         EndSelect
         
         ' Check for timeout
         If (L_Millis - L_LastInput) > (W_UI_TimeoutS * 1000) Then
             P_Beeps(3)                 ' Timeout error beep
             Result = B_Original        ' Return original value
-            ExitProc
+            GoTo Exit_Sensor      ' Exit the procedure
         EndIf
         
         DelayMS 1                      ' Small delay for system stability
     Wend
+    
+Exit_Sensor:
 EndProc
-
 '======================= INLINE TIME EDITOR (MM:SS FORMAT) ==================
 '
 ' Inline time editor maintaining screen layout consistency with your strategy
