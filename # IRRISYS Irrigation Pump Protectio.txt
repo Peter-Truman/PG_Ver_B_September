@@ -1,0 +1,375 @@
+# IRRISYS Irrigation Pump Protection System
+## Project Documentation & Development Bridge
+
+### System Overview
+**Platform:** PIC18F2525 microcontroller  
+**Language:** Positron BASIC  
+**Purpose:** Industrial irrigation pump protection system with multi-sensor monitoring and relay control
+
+### Core Functionality
+The IRRISYS system monitors three independent sensor inputs to protect irrigation pumps from damage due to:
+- Over/under pressure conditions
+- Temperature extremes  
+- Flow anomalies (low flow)
+
+Each input can be configured for different sensor types with automatic relay control based on setpoints and protection modes. Each sensor has its own set of timers and actions
+
+---
+
+## Hardware Configuration
+
+### Input Channels (3x Independent)
+- **Analog inputs:** 4-20mA current loop sensors
+- **Digital inputs:** Switch/contact closure sensors (for digital flow)
+- **Configurable per channel:** Each input can be Pressure, Temperature, or Flow
+
+### Sensor Types Supported
+1. **Pressure Sensors** (Analog only, 4-20mA)
+- Configurable 4mA and 20mA scaling points
+- Various timers - including
+- High Pressure Bypass (High BP). Maximum time in seconds the system will tolerate an over pressure condition.
+- Primary low pressure bypass (PLPBP). Maximum time in seconds the system will tolerate an initial under pressure condition (Line fill time)
+- Secondary low pressure bypass (SLPBP). Maximum time in seconds the system will tolerate any subsequent low pressure condition (once working pressure is achieved) - short term pressure dips
+
+2. **Temperature Sensors** (Analog only, 4-20mA)  
+- Configurable 4mA and 20mA scaling points
+- Units: Celsius
+- Set High temperature limit (0-100c)
+- High temp bypass in seconds - how long, in seconds will the system tolerate an over temp condition 
+
+3. **Flow Sensors** (Analog OR Digital)
+   - **Analog mode:** 4-20mA with scaling
+   - **Digital mode:** Switch input (NO/NC configurable)
+   - Units: Percent or LpS (liters per second)
+   - Low flow protection with dedicated setpoint
+
+### Output Control
+- **Relay outputs** for pump control
+- **Protection modes:**
+- Disabled: No relay action
+- Low: Relay activates on low condition
+- High: Relay activates on high condition  
+- Window: Relay activates outside range
+- Low Flow Bypass. Maximum time in seconds the system will tolerate a low flow condition
+
+---
+
+## Software Architecture
+
+### Menu System Structure
+
+#### Main Menu
+```
+Main Screen - this will display select system parameter
+See Main Display table for details (not yet available)
+
+
+
+### OPTIONS MENU
+
+├── Main menu      → Setup everyday parameters / easy access to selected setup data
+├── Setup Menu     → Configure the system (Current project focus)
+├── Utility Menu	 → Date and Time, System logs etc.
+├── About          → Version info
+└── Exit           → Return to the main screen
+```
+
+### Main Menu	Main menu gives access to additional parameters
+		as well as easy access to other setup data
+
+├── Hi Pressure    [Value] - in PSI
+├── High BP        [Time Value] - time in Seconds. Shown as mm:ss
+├── Low Pressure   [Value] - in PSI
+├── PLPBP          [Time Value] - time in Seconds. Shown as mm:ss
+├── SLPBP          [Time Value] - time in Seconds. Shown as mm:ss
+├── Use Clock      [Y/N] - use the clock?
+├── Set Runtime    [Time Value] - time in Hours and Minutes hh:mm
+└── Back           → Return to OPTIONS MENU
+
+
+#### Setup Menu (Current Development Focus)
+```
+SETUP
+
+├── Input 1        → Configure sensor for Input 1
+├── Input 2        → Configure sensor for Input 2
+├── Input 3        → Configure sensor for Input 3
+├── Clock          → Time related settings
+└── Back           → Return to OPTIONS MENU
+
+```
+
+#### Input Configuration Menu (Dynamic)
+The menu adapts based on sensor type and / or Flow mode:
+
+**For Pressure/Temperature Sensors:**
+```
+INPUT [1/2/3] - Pressure] Input 1 is set for Pressure by default
+
+├── Enable         [Enabled / Disabled]
+├── Sensor         [Pressure/Temp/Flow] - Pressure by default
+├── Scale 4mA      [Numeric value]
+├── Scale 20mA     [Numeric value]
+├── High BP        [Time Value] - time in Seconds. Shown as mm:ss
+├── PLPBP			 [Time Value] - time in Seconds. Shown as mm:ss
+├── SLPBP			 [Time Value] - time in Seconds. Shown as mm:ss
+├── Rly High       [Protection mode] - Latch / Pulse / Not Used (Latch by default)
+├── Rly Low        [Protection mode] - Latch / Pulse / Not Used (Latch by default)
+├── Rly SLP        [Protection mode] - Latch / Pulse / Not Used (Pulse by default)
+├── Display        [Show/Hide] - show or hide on the main screen
+└── Back			  → Return to SETUP menu
+
+```
+
+INPUT [1/2/3] - Temp] Input 2 is set for temp by default
+
+├── Enable         [Enabled / Disabled]
+├── Sensor         [Pressure/Temp/Flow] - Temp by default
+├── Scale 4mA      [Numeric value]
+├── Scale 20mA     [Numeric value]
+├── High Temp      [Numeric value] - temp value in deg C
+├── High TBP       [Time Value] - time in Seconds. Shown as mm:ss
+├── Rly High       [Protection mode] - Latch / Pulse / Not Used (Latch by default)
+├── Display        [Show/Hide] - show or hide on the main screen
+└── Back			  → Return to SETUP menu
+```
+
+INPUT [1/2/3] - Flow] Input 3 is set for Flow (Digital mode) by default
+
+├── Enable         [Enabled / Disabled]
+├── Sensor         [Pressure/Temp/Flow]	- flow by default
+├── Type           [Analog/Digital]	- Digital by default
+├── No Flow        [Low/High]
+├── No Flow BP     [Time Value] - time in Seconds. Shown as mm:ss
+├── Rly Low        [Protection mode] - Latch / Pulse / Not Used (Latch by default)
+├── Display        [Show/Hide] - show or hide on the main screen└── Back			  → Return to SETUP menu
+```
+INPUT [1/2/3] - Flow (Analogue)
+├── Enable         [Enabled / Disabled]
+├── Sensor         [Pressure/Temp/Flow]	- flow by default
+├── Type           [Analog/Digital] - analogue example
+├── Units          [% / LpS] - Display unit % of full flow or Liters per Second 
+├── Scale 4mA      [Numeric value]
+├── Scale 20mA     [Numeric value]
+├── Low Flow       [Value] - what value constitutes low flow
+├── Low Flow BP    [Time Value] - time in Seconds. Shown as mm:ss
+├── Rly Low        [Protection mode] - Latch / Pulse / Not Used (Latch by default)
+├── Display        [Show/Hide] - show or hide on the main screen
+└── Back			  → Return to SETUP menu
+```
+
+Clock
+├── Enable         [Enabled / Disabled]
+├── End Runtime    [Protection mode] - Latch / Pulse / Not Used (Pulse by default)
+├── Display        [Show/Hide] - show or hide on the main screen
+└── Back			  → Return to SETUP Menu
+			
+
+Additional configuration includes
+Utility Menu
+├── Set Clock      [dd/mm/yy hh:mm:ss] - set date and time
+├── View Log       [Yes / No] - view the system log (not yet written)
+├── Clear Log      [Yes / No] - delete the log
+├── Log Entries    [Value] - how many log entries to store
+├── Menu Timeout   [Time Value] - time in Seconds. Shown as mm:ss
+├── Contrast       [Value] - value between 3 and 10
+├── Brightness     [Value] - value between 3 and 10
+├── Pwr Fail Dly   [Time Value] - time in Seconds. Shown as mm:ss
+└── Back	         → Return to OPTIONS menu
+
+
+Any input can be configured for any sensor / sensor type
+All values are stored in non volatile memory
+---
+
+## Data Storage Architecture
+
+### EEPROM Memory Map
+- **Primary storage:** Configuration parameters
+- **Backup storage:** Complete configuration backup (factory settings)
+- **Checksum validation:** Data integrity checking
+- **Structure:** Bit-packed for efficiency
+
+### Configuration Storage Format
+
+#### Per-Input Storage
+```
+B_Ix_Enabled     : 1 bit  (Enable/Disable)
+B_Ix_SensorT     : 2 bits (Pressure/Temp/Flow)
+B_Ix_FlowMode    : 8 bits total
+  .0 = Flow Type (0=Analog, 1=Digital)
+  .1 = Units (0=%, 1=LpS) - Analog only
+B_Ix_DigCnf      : 8 bits
+  .0 = Active state (0=Low, 1=High) - Digital only
+W_Ix_Scale4      : 16 bits (4mA scaling)
+W_Ix_Scale20     : 16 bits (20mA scaling)
+W_Ix_BHP         : 16 bits (High setpoint/threshold)
+W_Ix_BLP/BP_Low  : 16 bits (Low setpoint/Low flow)
+B_Ix_RlyHP       : 2 bits (High relay mode)
+B_Ix_RlyLP/RlyLow: 2 bits (Low relay mode)
+B_Ix_RlySLP      : 8 bits (Start delay seconds)
+```
+
+**Note:** Flow sensors repurpose the SLP fields:
+- `BP_SLP` → `BP_Low` (Low flow setpoint)
+- `RlySLP` → `RlyLow` (Low flow relay mode)
+
+---
+
+## HMI Implementation Details
+
+### User Interface Elements
+- **20x4 LCD Display**
+- **Rotary encoder** for navigation
+- **Push button** for selection (short/long/very long press detection)
+- **Piezo beeper** for feedback (1-4 beep patterns)
+
+### Inline Editor Features
+- **2Hz blinking cursor** (250ms intervals)
+- **Right-justified text** in 8-character fields
+- **Tight parentheses** around selected values
+- **Non-blocking operation** maintains system responsiveness
+- **Button patterns:**
+  - Short press: Confirm selection
+  - Long press: Cancel/restore original
+  - Very long press: Quick exit to main menu
+
+### Display Formatting Standards
+```
+Field width: [12345678] (exactly 8 characters)
+Examples:
+  "Disabled" → "Disabled"  (no padding)
+  "Enabled"  → " Enabled"  (1 space prefix)
+  "Temp"     → "    Temp"  (4 space prefix)
+  "Flow"     → "    Flow"  (4 space prefix)
+```
+
+---
+
+## Current Development Status
+
+### ✅ Completed Components
+- [x] Complete menu navigation system
+- [x] EEPROM storage with checksum validation
+- [x] Backup/restore functionality
+- [x] All inline editors (Enable, Sensor, Type, Units, Scale, etc.)
+- [x] Dynamic menu adaptation for flow sensors
+- [x] Button debouncing and event handling
+- [x] Beeper feedback patterns
+- [x] ISR protection for critical sections
+- [x] Flow sensor expanded menu (Analog vs Digital modes)
+
+### 🚧 In Progress
+- [ ] Active field editor for digital flow sensors (currently defaults to 0)
+- [ ] Custom display text for Units field (show "%" vs "LpS" instead of Yes/No)
+- [ ] Main display screen showing real-time values
+- [ ] ADC initialization and reading
+
+### 📋 Pending Development
+- [ ] ADC sampling and averaging routines
+- [ ] Sensor value calculation from ADC readings
+- [ ] Relay control logic implementation
+- [ ] Alarm condition detection
+- [ ] System menu implementation
+- [ ] Clock/RTC functionality
+- [ ] Serial communication protocol
+- [ ] Modbus RTU implementation (if required)
+
+---
+
+## Code Optimization Opportunities
+
+### Known Areas for Review
+1. **Redundant procedures:** Multiple similar inline editors could potentially share code
+2. **Menu drawing:** Repeated print statements could be optimized
+3. **Variable usage:** Some procedures may have unnecessary local variables
+4. **EEPROM access:** Multiple reads/writes could be batched
+5. **String handling:** Repeated string literals could use symbols
+
+### Coding Standards Compliance
+- **Variable naming:** B_, W_, L_, I_ prefixes maintained
+- **Procedure naming:** P_, V_ prefixes used consistently
+- **Dword limit:** 8-character maximum (critical!)
+- **Label limit:** 12-character maximum
+- **ExitProc:** Now available (compiler updated)
+
+---
+
+## Critical Implementation Notes
+
+### Flow Sensor Special Handling
+Flow sensors have unique behavior that differs from Pressure/Temperature:
+1. **Menu changes dynamically** based on Analog/Digital selection
+2. **Storage is bit-packed** to preserve existing EEPROM structure
+3. **Digital mode has minimal configuration** (just Active state)
+4. **Analog mode uses only Low protection** (no high flow protection)
+
+### Memory Constraints
+- **PIC18F2525:** 48KB program memory, 3968 bytes RAM
+- **EEPROM:** 1024 bytes (configuration uses ~200 bytes)
+- **Stack depth:** Limited, avoid deep nesting
+
+### Timing Constraints
+- **Main loop:** 1ms minimum cycle time
+- **Display update:** 100ms minimum between updates
+- **Button debounce:** 100ms after release
+- **Blink rate:** 250ms on/off (2Hz)
+
+---
+
+## Next Phase Planning
+
+### Immediate Tasks (HMI Completion)
+1. Fix Active field editor for digital flow
+2. Implement custom Units display text
+3. Create main display screen layout
+4. Test all navigation paths
+
+### Phase 2: Core Functionality
+1. ADC initialization and configuration
+2. Sensor reading and scaling algorithms
+3. Relay control implementation
+4. Protection logic state machines
+
+### Phase 3: System Integration
+1. System menu implementation
+2. Clock/calendar functionality
+3. Serial communications
+4. Field testing and calibration
+
+---
+
+## Notes for Code Review
+
+When reviewing the complete codebase, focus on:
+
+1. **Procedure consolidation:** Look for similar inline editors that could share a common base
+2. **String optimization:** Identify repeated literals for symbol definition
+3. **Variable scope:** Find locals that could be globals or vice versa
+4. **Dead code:** Identify unreachable or unused procedures
+5. **EEPROM efficiency:** Optimize read/write patterns
+6. **ISR optimization:** Minimize time in interrupt handlers
+7. **Menu structure:** Consider table-driven approach for similar menus
+
+### Testing Checklist
+- [ ] All menu navigation paths
+- [ ] All value ranges and limits
+- [ ] EEPROM save/restore integrity
+- [ ] Power-on defaults
+- [ ] Sensor type transitions
+- [ ] Flow mode transitions
+- [ ] Long press cancellations
+- [ ] Very long press exits
+
+---
+
+## Contact & Support
+
+This document serves as a bridge between development sessions. When continuing work:
+1. Review current status section
+2. Check pending tasks
+3. Verify any changes against coding standards
+4. Test modified sections thoroughly
+5. Update this document with progress
+
+**Remember:** The HMI is nearly complete and functional. Avoid breaking changes. Test thoroughly before implementing major refactoring.

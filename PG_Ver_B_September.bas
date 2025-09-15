@@ -4403,7 +4403,7 @@ Proc V_SetupMenu(), Byte
             b_ScrDirty = 0
         EndIf
 
-        ' Navigation logic remains the same...
+        ' Navigation logic
         P_ReadEnc()
         If B_EncDelta <> 0 Then
             If B_EncDelta = 1 Then
@@ -4414,39 +4414,33 @@ Proc V_SetupMenu(), Byte
             Set b_ScrDirty
         EndIf
 
-        ' Check for very long press exit  <-- ADD HERE
+        ' Check for very long press exit
         If P_CheckVLongPress() = 1 Then
             Result = 2
-            ExitProc
+            ExitProc    ' Clean exit using ExitProc
         EndIf
-
 
         P_ReadBtn()
         Select P_GetKeyEvt()
             Case 1
                 P_Beeps(2)
-                If B_Sel = 0 Then
-                    V_Input1Menu()
-                    Set b_ScrDirty
-                Else
-                    If B_Sel = 1 Then
+                Select B_Sel
+                    Case 0    ' Input 1
+                        V_Input1Menu()
+                        Set b_ScrDirty
+                    Case 1    ' Input 2
                         V_Input2Menu()
                         Set b_ScrDirty
-                    Else
-                        If B_Sel = 2 Then
-                            V_Input3Menu()
-                            Set b_ScrDirty
-                        Else
-                            If B_Sel = 3 Then
-                                V_ClockMenu()
-                                Set b_ScrDirty
-                            Else
-                                Result = 1
-                                ExitProc
-                            EndIf
-                        EndIf
-                    EndIf
-                EndIf
+                    Case 2    ' Input 3
+                        V_Input3Menu()
+                        Set b_ScrDirty
+                    Case 3    ' Clock
+                        V_ClockMenu()
+                        Set b_ScrDirty
+                    Case 4    ' Back
+                        Result = 1
+                        ExitProc    ' Clean exit using ExitProc
+                EndSelect
         EndSelect
     Wend
 EndProc

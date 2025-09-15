@@ -47,10 +47,25 @@ GIE = 1
 ```
 
 ## Loop Exit Patterns
-- **Use `GoTo` labels** - No `Break` or `ExitProc` available in loops
+- **`ExitProc`** - Now available for exiting procedures (compiler updated)
+- **`Break`** - Not available, use `GoTo` labels for loop exits
 - **Label naming**: 8-12 characters maximum for local labels
 - **Global scope**: All labels are globally scoped
 
+### Procedure Exit Pattern (Updated)
+```basic
+Proc P_ExampleProc(), Byte
+    While 1 = 1
+        ' Loop logic
+        If exit_condition Then
+            Result = return_value
+            ExitProc    ' Clean procedure exit
+        EndIf
+    Wend
+EndProc
+```
+
+### Loop Exit Pattern (Still requires GoTo)
 ```basic
 While 1 = 1
     ' Loop logic
@@ -88,7 +103,7 @@ Proc P_Edit[Type]Inline(B_Current As Byte, B_Row As Byte), Byte
 ' 8-character field with right-justified text:
 "Disabled" → "Disabled" (8 chars, no spaces)
 "Enabled"  → " Enabled" (1 space + 7 chars)  
-"Temp"     → "    Temp" (4 spaces + 4 chars)
+"Temp"     → "    Temp" (4 chars) 
 "Analog"   → "  Analog" (2 spaces + 6 chars)
 "Digital"  → " Digital" (1 space + 7 chars)
 ```
@@ -106,20 +121,20 @@ Proc P_Edit[Type]Inline(B_Current As Byte, B_Row As Byte), Byte
 - **Button debounce**: 100ms after release
 - **System stability delay**: 1ms in main loop
 
-### Exit Handling
+### Exit Handling (Updated)
 ```basic
 ' Long press - cancel with original value
 If W_BtnHoldTime >= BTN_LONG_MS And _BTN = 0 Then
     P_Beeps(3)                 ' Error beep
     Result = B_Original
-    GoTo Exit_[Short]          ' Use short label names
+    ExitProc                   ' Clean exit now available
 EndIf
 
 ' Short press - commit new value  
 Case 1
     P_Beeps(2)                 ' Success beep
     Result = B_Working
-    GoTo Exit_[Short]
+    ExitProc                   ' Clean exit now available
 ```
 
 ## Flow Sensor Architecture
@@ -159,6 +174,7 @@ B_KeyEvent = 0  ' Force clear at procedure entry
 - **Variable collisions**: Use unique local variable names (e.g., `B_InpSel` not `B_Sel`)
 - **Label scope**: Labels are global - use descriptive prefixes to avoid conflicts
 - **Case sensitivity**: Variables and labels are case-sensitive
+- **ExitProc**: Now available for clean procedure exits (compiler updated)
 
 ## Error Patterns to Avoid
 - **Long Dword names**: `L_LastBlink` → `L_Blink` (8 char limit)
@@ -166,3 +182,12 @@ B_KeyEvent = 0  ' Force clear at procedure entry
 - **Unbalanced structures**: Missing EndIf, EndSelect statements
 - **Variable collisions**: Reusing common names like `B_Sel` across procedures
 - **Missing ISR protection**: Always protect shared variables with GIE disable/enable
+
+## FLOW SENSOR CONFIGURATION
+- Flow sensors support both analog (4-20mA) and digital (switch) inputs
+- Configuration stored in bit-packed format:
+  * FlowMode.0 = Type (0=Analog, 1=Digital)
+  * FlowMode.1 = Units (0=Percent, 1=LpS) for analog only
+  * DigCnf.0 = Active state (0=Low, 1=High) for digital only
+- Menu structure adapts dynamically based on flow type
+- Reuses SLP storage for Low Flow parameters (BP_SLP → BP_Low, RlySLP → RlyLow)
