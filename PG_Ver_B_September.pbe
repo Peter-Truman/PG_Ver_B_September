@@ -1,3 +1,2 @@
-18F2525,34244,791,32
-    Program Compiled OK. 34244 Bytes used from a possible 49152
-    791 Variables used in the 18F2525 from a possible 3967
+ERROR
+Error at Line [4526]	In file [C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas]	*** Comma missing, or command terminated incorrectly! ***

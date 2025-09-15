@@ -2,9 +2,9 @@
 Filename=C:\Users\PeeWee\Documents\engineering_repo\PG_Ver_B_September\PG_Ver_B_September.bas
 
 [Environment]
-CaretX=8
-CaretY=4446
-Topline=4402
+CaretX=1
+CaretY=3303
+Topline=3303
 AsmCaretX=0
 AsmCaretY=0
 AsmTopLine=0
@@ -15,16 +15,16 @@ Rollover=255
 Major=0
 Minor=0
 Release=0
-Build=246
+Build=249
 
 [Results]
 Visible=1
 Height=151
-View=2
+View=1
 
 [Status]
-Message=Success : 34238 program bytes used, 791 variable bytes used
-Image=0
+Message=Compilation errors
+Image=3
 
 [Studio]
 Notes=
